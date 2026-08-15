@@ -10,8 +10,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
-- _Nothing yet — add lines here as you work; they move under a version heading
-  when you cut a release._
+- **Real 3D subtitles.** In 3D mode SubtitleGenie now rewrites the downloaded
+  subtitle into a per-eye `.ass` file: for Side-by-Side it draws one copy in the
+  left half and one in the right (each horizontally squeezed for Half-SBS), and
+  for Over-Under it stacks top/bottom copies (vertically squeezed for Half-OU).
+  Previously the 3D option only affected naming/matching, so a flat subtitle was
+  rendered once across the seam and didn't fuse on a 3D display.
+  - New flags: `--3d-format {auto,hsbs,sbs,hou,ou}`, `--3d-depth N`
+    (per-eye shift; 0 = screen plane), `--keep-flat` (also keep the plain 2D
+    subtitle). New config keys: `defaults.three_d_format`,
+    `defaults.three_d_disparity`, `defaults.three_d_keep_flat`.
+  - Frame resolution is probed with ffprobe so the per-eye positions match the
+    actual movie; falls back to 1080p when ffprobe isn't available.
+  - Embedding 3D subtitles into MKV keeps them as ASS (positioning preserved);
+    MP4 can't carry positioned subtitles, so use MKV or sidecar mode for 3D.
 
 ## [0.1.0] - 2026-08-15
 

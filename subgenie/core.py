@@ -31,6 +31,10 @@ class RunOptions:
     keep_original_on_embed: bool = False
     hearing_impaired: str = "include"     # include | prefer | exclude
     forced: str = "include"               # include | prefer | exclude | only
+    # 3D subtitle rendering.
+    three_d_format: str = "auto"          # auto | hsbs | sbs | hou | ou
+    three_d_disparity: int = 0            # per-eye horizontal shift (depth)
+    three_d_keep_flat: bool = False       # also keep the plain 2D .srt sidecar
 
 
 @dataclass
@@ -196,13 +200,41 @@ def process_movie(
     return result
 
 
+def _effective_3d_format(options: RunOptions, info: MovieInfo):
+    """Resolve which 3D layout to use: explicit override wins over detection."""
+    override = (options.three_d_format or "auto").lower()
+    if override and override != "auto":
+        return override.upper()
+    return info.three_d_format  # canonical tag from filename detection, or None
+
+
+def _is_convertible_text_sub(ext: str) -> bool:
+    return ext.lower() in (".srt", ".vtt")
+
+
 def _place_sidecars(
     info: MovieInfo,
     options: RunOptions,
     downloaded: list[tuple[Language, bytes, SubtitleCandidate]],
     result: MovieResult,
 ) -> None:
+    three_d = options.treat_as_3d
+    width = height = None
+    if three_d:
+        from .threed import video_resolution
+        width, height = video_resolution(info.path)
+
     for lang, data, cand in downloaded:
+        # 3D path: rewrite text subtitles into a per-eye .ass so they display
+        # correctly on a Side-by-Side / Over-Under 3D frame.
+        if three_d and _is_convertible_text_sub(cand.subtitle_ext):
+            try:
+                _write_3d_sidecar(info, options, lang, data, cand, result,
+                                  width, height)
+            except OSError as exc:
+                result.outcomes.append(LanguageOutcome(lang, "error", f"write failed: {exc}"))
+            continue
+
         path = sidecar_path(
             info, lang,
             forced=cand.forced,
@@ -221,6 +253,40 @@ def _place_sidecars(
         )
 
 
+def _write_3d_sidecar(info, options, lang, data, cand, result, width, height) -> None:
+    from .threed import convert_to_3d_ass
+
+    fmt = _effective_3d_format(options, info)
+    srt_text = data.decode("utf-8", errors="replace")
+    ass_text = convert_to_3d_ass(
+        srt_text, fmt, width=width, height=height, disparity=options.three_d_disparity
+    )
+    ass_path = sidecar_path(
+        info, lang,
+        forced=cand.forced,
+        hearing_impaired=cand.hearing_impaired,
+        subtitle_ext=".ass",
+        overwrite=options.overwrite,
+    )
+    with open(ass_path, "w", encoding="utf-8") as handle:
+        handle.write(ass_text)
+
+    detail = f"3D per-eye ({fmt or 'HSBS'})"
+    result.outcomes.append(LanguageOutcome(lang, "downloaded", detail, ass_path))
+
+    # Optionally keep the untouched flat subtitle beside the 3D one.
+    if options.three_d_keep_flat:
+        flat_path = sidecar_path(
+            info, lang,
+            forced=cand.forced,
+            hearing_impaired=cand.hearing_impaired,
+            subtitle_ext=cand.subtitle_ext,
+            overwrite=options.overwrite,
+        )
+        with open(flat_path, "wb") as handle:
+            handle.write(data)
+
+
 def _place_embedded(
     info: MovieInfo,
     options: RunOptions,
@@ -234,14 +300,33 @@ def _place_embedded(
     # bytes to temp files first, mux, then clean them up.
     import tempfile
 
+    three_d = options.treat_as_3d
+    width = height = None
+    if three_d:
+        from .threed import video_resolution
+        width, height = video_resolution(info.path)
+
     tracks: list[SubtitleTrack] = []
     temp_files: list[str] = []
     try:
         for lang, data, cand in downloaded:
-            fd, temp_path = tempfile.mkstemp(suffix=cand.subtitle_ext, prefix="subgenie_sub_")
-            temp_files.append(temp_path)
-            with os.fdopen(fd, "wb") as handle:
-                handle.write(data)
+            # In 3D mode, convert text subtitles to a per-eye .ass before muxing.
+            if three_d and _is_convertible_text_sub(cand.subtitle_ext):
+                from .threed import convert_to_3d_ass
+                ass_text = convert_to_3d_ass(
+                    data.decode("utf-8", errors="replace"),
+                    _effective_3d_format(options, info),
+                    width=width, height=height, disparity=options.three_d_disparity,
+                )
+                fd, temp_path = tempfile.mkstemp(suffix=".ass", prefix="subgenie_sub_")
+                temp_files.append(temp_path)
+                with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                    handle.write(ass_text)
+            else:
+                fd, temp_path = tempfile.mkstemp(suffix=cand.subtitle_ext, prefix="subgenie_sub_")
+                temp_files.append(temp_path)
+                with os.fdopen(fd, "wb") as handle:
+                    handle.write(data)
             tracks.append(SubtitleTrack(
                 path=temp_path, language=lang,
                 forced=cand.forced, hearing_impaired=cand.hearing_impaired,

@@ -81,6 +81,42 @@ def test_process_movie_writes_sidecars(tmp_path):
     assert es_file.read_bytes() == b"spanish-sub"
 
 
+def test_process_movie_3d_writes_ass_sidecar(tmp_path):
+    movie = tmp_path / "Avatar (2009) 3D HSBS 1080p.mkv"
+    movie.write_bytes(b"x" * (300 * 1024))
+    info = parse(str(movie))
+    assert info.is_3d and info.three_d_format == "HSBS"
+
+    en = languages.find("en")
+    srt = b"1\n00:00:01,000 --> 00:00:02,000\nHello\n"
+    provider = FakeProvider({"eng": [_make_candidate(en, release="G")]},
+                            payloads={"eng": srt})
+    options = RunOptions(languages=[en], action=ACTION_SIDECAR, treat_as_3d=True)
+    result = process_movie(info, options, [provider])
+
+    ass_file = tmp_path / "Avatar (2009) 3D HSBS 1080p.en.ass"
+    assert ass_file.exists()
+    content = ass_file.read_text()
+    # Two positioned copies (one per eye) with horizontal squeeze.
+    assert content.count("Dialogue:") == 2
+    assert r"\fscx50" in content
+    assert result.outcomes[0].status == "downloaded"
+    assert "3D per-eye" in result.outcomes[0].detail
+
+
+def test_process_movie_3d_keep_flat_writes_both(tmp_path):
+    movie = tmp_path / "Film (2015) HSBS.mkv"
+    movie.write_bytes(b"x" * (300 * 1024))
+    info = parse(str(movie))
+    en = languages.find("en")
+    srt = b"1\n00:00:01,000 --> 00:00:02,000\nHi\n"
+    provider = FakeProvider({"eng": [_make_candidate(en)]}, payloads={"eng": srt})
+    options = RunOptions(languages=[en], treat_as_3d=True, three_d_keep_flat=True)
+    process_movie(info, options, [provider])
+    assert (tmp_path / "Film (2015) HSBS.en.ass").exists()
+    assert (tmp_path / "Film (2015) HSBS.en.srt").exists()
+
+
 def test_process_movie_reports_notfound(tmp_path):
     movie = tmp_path / "Obscure (1931).mkv"
     movie.write_bytes(b"x" * (300 * 1024))

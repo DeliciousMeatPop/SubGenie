@@ -71,6 +71,10 @@ class Defaults:
     hearing_impaired: str = "include"      # include | prefer | exclude
     forced: str = "include"                # include | prefer | exclude | only
     keep_original_on_embed: bool = False   # keep a copy of the pre-mux file
+    # 3D subtitle rendering (see subgenie/threed.py).
+    three_d_format: str = "auto"           # auto | hsbs | sbs | hou | ou
+    three_d_disparity: int = 0             # per-eye horizontal shift (depth); 0 = screen plane
+    three_d_keep_flat: bool = False        # also write the plain 2D .srt alongside the 3D .ass
 
 
 @dataclass
@@ -145,6 +149,9 @@ class Config:
             keep_original_on_embed=bool(
                 defaults.get("keep_original_on_embed", base.keep_original_on_embed)
             ),
+            three_d_format=defaults.get("three_d_format", base.three_d_format),
+            three_d_disparity=int(defaults.get("three_d_disparity", base.three_d_disparity)),
+            three_d_keep_flat=bool(defaults.get("three_d_keep_flat", base.three_d_keep_flat)),
         )
 
         prompts = data.get("prompts", {}) or {}

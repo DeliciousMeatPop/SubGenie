@@ -178,6 +178,34 @@ Because subtitles are named from the movie's own filename, any `3D`/`HSBS`/etc.
 tag is preserved automatically, and Plex/Jellyfin pick the tracks up with the
 right language, forced, and SDH flags.
 
+## How 3D subtitles work
+
+A plain `.srt` over a Side-by-Side or Over-Under 3D movie shows up **once**,
+centered across the whole frame — straddling the seam between the two eye
+images. On a 3D display each eye then only sees half the text, so it never
+fuses. That's not a real 3D subtitle.
+
+In **3D mode** SubtitleGenie rewrites the subtitle into a per-eye `.ass` file:
+
+- **Side-by-Side (SBS/HSBS):** one copy centered in the left half, one in the
+  right half. Half-SBS squeezes each eye horizontally, so the text is drawn at
+  50% width to look right after the display stretches it back.
+- **Over-Under (OU/HOU):** copies stacked in the top and bottom halves, with
+  50% height for Half-OU.
+
+The layout is auto-detected from the filename (`HSBS`, `Half-OU`, …); override
+with `--3d-format`. Depth defaults to the screen plane — nudge it with
+`--3d-depth N` if you want the text to sit in front of or behind the screen.
+Use `--keep-flat` to also keep the ordinary 2D subtitle beside the 3D one.
+
+```bash
+subtitlegenie "I Am Number Four 3D HSBS.mkv" --3d            # auto-detect layout
+subtitlegenie movie.mkv --3d --3d-format hou --3d-depth 8    # force Over-Under, slight pop-out
+```
+
+> Frame resolution is read via ffprobe so the per-eye positions match your
+> movie exactly; without ffprobe it assumes 1080p.
+
 ## How embedding works
 
 With `--action embed` (or `defaults.action = embed`), SubtitleGenie muxes the
