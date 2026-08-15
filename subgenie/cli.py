@@ -26,6 +26,7 @@ from .config import (
     Config,
 )
 from .core import RunOptions, process_movie
+from . import ffmpeg as ffmpeg_tools
 from .embed import ffmpeg_available
 from .languages import Language, resolve_many
 from .mediainfo import MovieInfo, is_video_file, parse
@@ -37,7 +38,7 @@ from .providers.base import Provider
 # argument parsing
 # --------------------------------------------------------------------------
 
-KNOWN_COMMANDS = {"setup", "config", "languages", "update"}
+KNOWN_COMMANDS = {"setup", "config", "languages", "update", "install-ffmpeg"}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -368,6 +369,54 @@ def _maybe_check_for_update(cfg: Config, args) -> bool:
     return _perform_update(release, list(args.paths))
 
 
+def _run_ffmpeg_install() -> bool:
+    """Download ffmpeg into SubtitleGenie's folder. Returns True on success."""
+    print(ui.dim("  Downloading a static ffmpeg build (this can take a minute)..."))
+    try:
+        installed = ffmpeg_tools.install(progress=_download_progress)
+    except ffmpeg_tools.InstallError as exc:
+        print(ui.red(f"\n  Couldn't install ffmpeg: {exc}"))
+        return False
+    names = ", ".join(os.path.basename(p) for p in installed)
+    print(ui.green(f"\n  Installed {names}") + ui.dim(f" to {ffmpeg_tools.local_bin_dir()}"))
+    return True
+
+
+def _offer_ffmpeg_install() -> bool:
+    """Explain ffmpeg is missing and offer the opt-in install.
+
+    Returns True if ffmpeg is available afterward (was already there, or we just
+    installed it), False otherwise.
+    """
+    if ffmpeg_available():
+        return True
+    print(ui.yellow("\nffmpeg isn't installed — it's needed to embed subtitles."))
+    print(ui.dim(ffmpeg_tools.guidance()))
+    if ffmpeg_tools.can_auto_install() and ui.is_interactive():
+        if ui.confirm("\nDownload ffmpeg into SubtitleGenie's own folder now?", default=True):
+            if _run_ffmpeg_install():
+                return ffmpeg_available()
+    return False
+
+
+def cmd_install_ffmpeg(cfg: Config) -> int:
+    print(ui.banner())
+    if ffmpeg_available():
+        print(ui.green(f"\nffmpeg is already available: {ffmpeg_tools.ffmpeg_path()}"))
+        return 0
+    if not ffmpeg_tools.can_auto_install():
+        print(ui.yellow("\nAutomatic install isn't supported on this OS."))
+        print(ui.dim("\n" + ffmpeg_tools.guidance()))
+        return 1
+    print(ui.dim("\nFetching an official/trusted static build; "
+                 "SubtitleGenie will use it automatically afterward.\n"))
+    if not _run_ffmpeg_install():
+        print(ui.dim("\n" + ffmpeg_tools.guidance()))
+        return 1
+    print(ui.green("Done. ") + ui.dim("SubtitleGenie will use this ffmpeg from now on."))
+    return 0
+
+
 def cmd_languages() -> int:
     from .languages import all_languages
     print(ui.bold("Supported languages") + ui.dim("  (sidecar code / 3-letter / name)"))
@@ -557,7 +606,9 @@ def run_jobs(cfg: Config, args) -> int:
     overwrite = resolve_overwrite(cfg, args)
 
     if action == ACTION_EMBED and not ffmpeg_available():
-        print(ui.yellow("ffmpeg not found – subtitles will be saved as sidecar files instead."))
+        if not _offer_ffmpeg_install():
+            print(ui.yellow("ffmpeg not found – subtitles will be saved as sidecar files instead."))
+            action = ACTION_SIDECAR
 
     exit_code = 0
     for movie_path in movies:
@@ -602,6 +653,8 @@ def _dispatch_command(command: str, rest: list[str], cfg: Config) -> int:
         return cmd_languages()
     if command == "update":
         return cmd_update(cfg)
+    if command == "install-ffmpeg":
+        return cmd_install_ffmpeg(cfg)
     if command == "config":
         cfg_parser = argparse.ArgumentParser(prog="subgenie config")
         cfg_parser.add_argument("--show", action="store_true",

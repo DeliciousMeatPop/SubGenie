@@ -14,12 +14,12 @@ backup), so an interrupted mux never corrupts the source file.
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
 from typing import Optional
 
+from . import ffmpeg as ffmpeg_tools
 from .languages import Language
 
 
@@ -36,11 +36,12 @@ class EmbedError(Exception):
 
 
 def ffmpeg_path() -> Optional[str]:
-    return shutil.which("ffmpeg")
+    # Looks on PATH first, then in SubtitleGenie's own install dir.
+    return ffmpeg_tools.ffmpeg_path()
 
 
 def ffprobe_path() -> Optional[str]:
-    return shutil.which("ffprobe")
+    return ffmpeg_tools.ffprobe_path()
 
 
 def ffmpeg_available() -> bool:
@@ -99,8 +100,8 @@ def embed_subtitles(
     ffmpeg = ffmpeg_path()
     if not ffmpeg:
         raise EmbedError(
-            "ffmpeg was not found on PATH. Install ffmpeg to embed subtitles, "
-            "or use sidecar mode instead."
+            "ffmpeg was not found. Install it to embed subtitles, or use sidecar "
+            "mode instead.\n\n" + ffmpeg_tools.guidance()
         )
     if not tracks:
         raise EmbedError("No subtitle tracks to embed.")
