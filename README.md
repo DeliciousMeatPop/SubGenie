@@ -282,3 +282,25 @@ runtime; everything else is standard library). Providers are pluggable — see
 ## License
 
 MIT — see the header in `pyproject.toml`.
+
+---
+
+![Visitors](https://api.visitorbadge.io/api/visitors?path=DeliciousMeatPop%2FSubGenie&label=People%20Who%20Forgot%20To%20Star%20This%20Repo&countColor=%23ba68c8&style=plastic)<br>
+![Last Commit](https://img.shields.io/github/last-commit/DeliciousMeatPop/SubGenie?label=Last%20Updated)<br>
+![Created](https://img.shields.io/github/created-at/DeliciousMeatPop/SubGenie?label=Created)<br>
+![Monthly Commits](https://img.shields.io/github/commit-activity/m/DeliciousMeatPop/SubGenie?label=Monthly%20Commits)<br>
+
+## ⭐ Do the thing
+
+You’re already here. You’ve already scrolled.
+
+Just hit the ⭐ and we both win.
+
+⭐ Star this repo please
+
+---
+
+[![GitHub stars for this repo](https://img.shields.io/github/stars/DeliciousMeatPop/SubGenie?style=social)](https://github.com/DeliciousMeatPop/SubGenie) = **GitHub stars for this repo**
+
+[![GitHub stars in total (all repos)](https://img.shields.io/github/stars/DeliciousMeatPop?style=social)](https://github.com/DeliciousMeatPop) = **GitHub stars in total (all repos)**
+
