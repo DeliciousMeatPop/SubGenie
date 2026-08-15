@@ -103,12 +103,7 @@ jobs:
       # self-update check report the version this artifact was actually built
       # from, independent of whatever is committed in __init__.py.
       - name: Stamp version
-        run: >-
-          python -c "import re,pathlib;
-          p=pathlib.Path('subgenie/__init__.py');
-          p.write_text(re.sub(r'__version__ = \"[^\"]*\"',
-          '__version__ = \"${{ needs.version.outputs.version }}\"',
-          p.read_text(encoding='utf-8')), encoding='utf-8')"
+        run: python scripts/stamp_version.py "${{ needs.version.outputs.version }}"
 
       - name: Install project and PyInstaller
         run: |
