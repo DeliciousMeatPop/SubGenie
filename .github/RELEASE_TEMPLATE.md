@@ -36,6 +36,3 @@ pick your defaults. Then just drop a movie on it.
 
 - 📖 [README](https://github.com/DeliciousMeatPop/SubGenie/blob/main/README.md)
 - 📋 [Full changelog](https://github.com/DeliciousMeatPop/SubGenie/blob/main/CHANGELOG.md)
-
----
-_This is a draft — review, tweak the notes above if needed, and hit publish._
