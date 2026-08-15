@@ -80,20 +80,35 @@ jobs:
         include:
           - os: ubuntu-latest
             label: linux-x64
+            osname: linux
           - os: windows-latest
             label: windows-x64
+            osname: win
           - os: macos-latest
             label: macos-arm64
+            osname: mac
     runs-on: ${{ matrix.os }}
     env:
       VERSION: ${{ needs.version.outputs.version }}
       LABEL: ${{ matrix.label }}
+      OSNAME: ${{ matrix.osname }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      # Bake the release version into the binary so `--version` and the
+      # self-update check report the version this artifact was actually built
+      # from, independent of whatever is committed in __init__.py.
+      - name: Stamp version
+        run: >-
+          python -c "import re,pathlib;
+          p=pathlib.Path('subgenie/__init__.py');
+          p.write_text(re.sub(r'__version__ = \"[^\"]*\"',
+          '__version__ = \"${{ needs.version.outputs.version }}\"',
+          p.read_text(encoding='utf-8')), encoding='utf-8')"
 
       - name: Install project and PyInstaller
         run: |
@@ -109,8 +124,9 @@ jobs:
         shell: bash
         run: |
           STAGE="SubtitleGenie-${VERSION}-${LABEL}"
+          BIN="SubtitleGenie_${OSNAME}_v${VERSION}"
           mkdir -p "dist/$STAGE"
-          cp dist/subtitlegenie "dist/$STAGE/"
+          cp dist/subtitlegenie "dist/$STAGE/$BIN"
           cp README.md CHANGELOG.md "dist/$STAGE/"
           tar -C dist -czf "${STAGE}.tar.gz" "$STAGE"
           echo "ASSET=${STAGE}.tar.gz" >> "$GITHUB_ENV"
@@ -120,8 +136,9 @@ jobs:
         shell: pwsh
         run: |
           $stage = "SubtitleGenie-$env:VERSION-$env:LABEL"
+          $bin = "SubtitleGenie_${env:OSNAME}_v${env:VERSION}.exe"
           New-Item -ItemType Directory -Force -Path "dist/$stage" | Out-Null
-          Copy-Item "dist/subtitlegenie.exe" "dist/$stage/"
+          Copy-Item "dist/subtitlegenie.exe" "dist/$stage/$bin"
           Copy-Item "README.md","CHANGELOG.md" "dist/$stage/"
           Compress-Archive -Path "dist/$stage/*" -DestinationPath "$stage.zip" -Force
           "ASSET=$stage.zip" | Out-File -FilePath $env:GITHUB_ENV -Append

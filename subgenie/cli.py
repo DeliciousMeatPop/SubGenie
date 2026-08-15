@@ -18,7 +18,7 @@ import os
 import sys
 from typing import Optional
 
-from . import __version__, config as config_module, ui
+from . import __version__, config as config_module, ui, updater
 from .config import (
     ACTION_EMBED, ACTION_SIDECAR, ASK, NEVER,
     MODE_ALWAYS, MODE_NEVER, MODE_SMART,
@@ -37,7 +37,7 @@ from .providers.base import Provider
 # argument parsing
 # --------------------------------------------------------------------------
 
-KNOWN_COMMANDS = {"setup", "config", "languages"}
+KNOWN_COMMANDS = {"setup", "config", "languages", "update"}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -74,6 +74,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Ask about every decision this run (like mode=always).")
     parser.add_argument("-r", "--recursive", action="store_true",
                         help="Recurse into subfolders when given a directory.")
+    parser.add_argument("--no-update-check", dest="no_update_check", action="store_true",
+                        help="Skip the automatic 'is there a newer version?' check this run.")
     return parser
 
 
@@ -235,6 +237,137 @@ def _print_result(result) -> None:
 # subcommands
 # --------------------------------------------------------------------------
 
+def _download_progress(done: int, total: int) -> None:
+    if total and sys.stdout.isatty():
+        pct = int(done * 100 / total)
+        print(f"\r  {pct:3d}%  ({done // 1024} / {total // 1024} KiB)", end="", flush=True)
+
+
+def _perform_update(release, movie_args: list[str]) -> bool:
+    """Download + install the new version; optionally hand off to it.
+
+    Returns True if the new version was launched and the current process should
+    now exit (on POSIX the launch replaces this process and never returns, so a
+    True result there is effectively unreachable).
+    """
+    asset = updater.pick_asset(release.assets)
+    if asset is None:
+        print(ui.yellow("  No prebuilt download for your OS in that release."))
+        print(ui.dim("  Get it here: ") + release.url)
+        return False
+
+    binary = updater.current_binary()
+
+    # Running from source: there's no binary to sit beside, so just fetch the
+    # archive and let the user handle it (or 'git pull').
+    if binary is None:
+        try:
+            path = updater.download_asset(asset, os.getcwd(), progress=_download_progress)
+        except Exception as exc:  # noqa: BLE001
+            print(ui.red(f"\n  Download failed: {exc}"))
+            print(ui.dim("  Manual download: ") + release.url)
+            return False
+        print(ui.green(f"\n  Saved {os.path.basename(path)} to the current folder."))
+        print(ui.dim("  (You're running from source — unzip it, or just 'git pull'.)"))
+        return False
+
+    install_dir = os.path.dirname(binary)
+    import tempfile
+    tmpdir = tempfile.mkdtemp(prefix="subtitlegenie_upd_")
+    try:
+        print(ui.dim(f"  Downloading {asset.name} ..."))
+        archive = updater.download_asset(asset, tmpdir, progress=_download_progress)
+        new_bin = updater.extract_binary(archive, install_dir)
+    except Exception as exc:  # noqa: BLE001
+        print(ui.red(f"\n  Update failed: {exc}"))
+        print(ui.dim("  Manual download: ") + release.url)
+        return False
+    finally:
+        import shutil
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+    if not new_bin:
+        print(ui.red("\n  Couldn't find the new binary inside the download."))
+        print(ui.dim("  Manual download: ") + release.url)
+        return False
+
+    print(ui.green(f"\n  Installed {os.path.basename(new_bin)}") +
+          ui.dim(f"  (next to your current version, in {install_dir})"))
+
+    # Hand off to the new version. Because the new file has its own versioned
+    # name, there's no clash with the still-running old one.
+    prompt = "Launch the new version now"
+    prompt += " with the same movie?" if movie_args else "?"
+    if ui.is_interactive() and ui.confirm(prompt, default=True):
+        print(ui.dim("  Starting the new version..."))
+        try:
+            updater.launch(new_bin, movie_args)   # POSIX: never returns
+        except Exception as exc:  # noqa: BLE001
+            print(ui.red(f"  Couldn't launch it automatically: {exc}"))
+            print(ui.dim("  Run it yourself: ") + new_bin)
+            return False
+        return True   # Windows: new console launched; caller should exit
+    print(ui.dim("  Run it any time: ") + new_bin)
+    return False
+
+
+def cmd_update(cfg: Config) -> int:
+    print(ui.banner())
+    print(ui.dim(f"\nInstalled: v{__version__}. Checking {updater.REPO} for a newer release..."))
+    release = updater.fetch_latest()
+    if release is None:
+        print(ui.yellow("Couldn't reach GitHub to check for updates right now."))
+        return 1
+    # Record the check so the automatic one doesn't immediately re-fire.
+    import time
+    cfg.updates.last_check = time.time()
+    config_module.save(cfg)
+
+    if not updater.is_newer(release.version, __version__):
+        print(ui.green(f"You're up to date (latest is {release.tag})."))
+        return 0
+
+    print(ui.bold(ui.cyan(f"\nNew version available: {release.tag}")) +
+          ui.dim(f"  (you have v{__version__})"))
+    if ui.confirm("Download and install it?", default=True):
+        _perform_update(release, [])
+    else:
+        print(ui.dim("Get it any time at: ") + release.url)
+    return 0
+
+
+def _maybe_check_for_update(cfg: Config, args) -> bool:
+    """Automatic, throttled update check at the start of a normal run.
+
+    Returns True if we installed and launched the new version (caller should stop
+    and let the new process take over). Safe by design: only when interactive,
+    enabled, not suppressed, and at most once a day; any failure is swallowed so
+    it never disrupts the real job.
+    """
+    if args.no_update_check or args.yes or not cfg.updates.check_on_run:
+        return False
+    if not ui.is_interactive():
+        return False
+    import time
+    now = time.time()
+    if now - cfg.updates.last_check < 86400:  # already checked within 24h
+        return False
+    cfg.updates.last_check = now
+    try:
+        config_module.save(cfg)
+    except OSError:
+        pass
+    release = updater.check_for_update(__version__)
+    if release is None:
+        return False
+    print(ui.bold(ui.cyan(f"A new version is available: {release.tag}")) +
+          ui.dim(f"  (you have v{__version__})"))
+    if not ui.confirm("Update now?", default=False):
+        print(ui.dim("Later: run 'subtitlegenie update', or visit ") + release.url + "\n")
+        return False
+    return _perform_update(release, list(args.paths))
+
+
 def cmd_languages() -> int:
     from .languages import all_languages
     print(ui.bold("Supported languages") + ui.dim("  (sidecar code / 3-letter / name)"))
@@ -294,6 +427,13 @@ def _apply_dotted(cfg: Config, key: str, value: str) -> bool:
         elif parts[:1] == ["prompts"] and len(parts) == 2:
             if hasattr(cfg.prompts, parts[1]):
                 setattr(cfg.prompts, parts[1], value)
+            else:
+                return False
+        elif parts[:1] == ["updates"] and len(parts) == 2:
+            if parts[1] == "check_on_run":
+                cfg.updates.check_on_run = _as_bool(value)
+            elif parts[1] == "last_check":
+                cfg.updates.last_check = float(value)
             else:
                 return False
         else:
@@ -389,6 +529,13 @@ def cmd_setup(cfg: Config) -> int:
 # --------------------------------------------------------------------------
 
 def run_jobs(cfg: Config, args) -> int:
+    print(ui.banner())
+
+    # Offer an update before doing any work. If the user updates, the new
+    # version is launched (with the same movie[s]) and we stop here.
+    if _maybe_check_for_update(cfg, args):
+        return 0
+
     movies = collect_movies(args.paths, args.recursive)
     if not movies:
         print(ui.yellow("No movie files found in the given path(s)."))
@@ -401,7 +548,6 @@ def run_jobs(cfg: Config, args) -> int:
                      "or enable fallbacks in config."))
         return 1
 
-    print(ui.banner())
     print(ui.dim(f"Found {len(movies)} movie file(s). "
                  f"Providers: {', '.join(p.name for p in providers)}."))
 
@@ -454,6 +600,8 @@ def _dispatch_command(command: str, rest: list[str], cfg: Config) -> int:
         return cmd_setup(cfg)
     if command == "languages":
         return cmd_languages()
+    if command == "update":
+        return cmd_update(cfg)
     if command == "config":
         cfg_parser = argparse.ArgumentParser(prog="subgenie config")
         cfg_parser.add_argument("--show", action="store_true",
