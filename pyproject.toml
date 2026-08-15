@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "subgenie"
+version = "0.1.0"
+description = "Drop a movie on it; it finds, names, and/or embeds subtitles in any language."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "SubGenie" }]
+keywords = ["subtitles", "opensubtitles", "movies", "ffmpeg", "plex", "jellyfin", "3d"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Video",
+]
+dependencies = [
+    "requests>=2.25",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+subgenie = "subgenie.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/DeliciousMeatPop/SubGenie"
+
+[tool.setuptools]
+packages = ["subgenie", "subgenie.providers"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
