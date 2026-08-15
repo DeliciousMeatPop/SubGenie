@@ -1,5 +1,9 @@
 # SubtitleGenie 🧞
 
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/f907702e-31cf-41b3-8983-d1dbe89b68f5" alt="Subtitle Genie" width="700">
+</p>
+
 **Drop a movie on it. It finds the subtitles, names them, or embeds them — done.**
 
 SubtitleGenie is a small, cross-platform (Windows / macOS / Linux) tool that
