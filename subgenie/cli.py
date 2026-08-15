@@ -237,29 +237,78 @@ def _print_result(result) -> None:
 # subcommands
 # --------------------------------------------------------------------------
 
-def _download_release(release, dest_dir: str) -> None:
-    """Download the OS-appropriate asset for a release into dest_dir."""
+def _download_progress(done: int, total: int) -> None:
+    if total and sys.stdout.isatty():
+        pct = int(done * 100 / total)
+        print(f"\r  {pct:3d}%  ({done // 1024} / {total // 1024} KiB)", end="", flush=True)
+
+
+def _perform_update(release, movie_args: list[str]) -> bool:
+    """Download + install the new version; optionally hand off to it.
+
+    Returns True if the new version was launched and the current process should
+    now exit (on POSIX the launch replaces this process and never returns, so a
+    True result there is effectively unreachable).
+    """
     asset = updater.pick_asset(release.assets)
     if asset is None:
-        print(ui.yellow("  No prebuilt download found for your OS in that release."))
+        print(ui.yellow("  No prebuilt download for your OS in that release."))
         print(ui.dim("  Get it here: ") + release.url)
-        return
+        return False
 
-    print(ui.dim(f"  Downloading {asset.name} ..."))
+    binary = updater.current_binary()
 
-    def show(done: int, total: int) -> None:
-        if total and sys.stdout.isatty():
-            pct = int(done * 100 / total)
-            print(f"\r  {pct:3d}%  ({done // 1024} / {total // 1024} KiB)", end="", flush=True)
+    # Running from source: there's no binary to sit beside, so just fetch the
+    # archive and let the user handle it (or 'git pull').
+    if binary is None:
+        try:
+            path = updater.download_asset(asset, os.getcwd(), progress=_download_progress)
+        except Exception as exc:  # noqa: BLE001
+            print(ui.red(f"\n  Download failed: {exc}"))
+            print(ui.dim("  Manual download: ") + release.url)
+            return False
+        print(ui.green(f"\n  Saved {os.path.basename(path)} to the current folder."))
+        print(ui.dim("  (You're running from source — unzip it, or just 'git pull'.)"))
+        return False
 
+    install_dir = os.path.dirname(binary)
+    import tempfile
+    tmpdir = tempfile.mkdtemp(prefix="subtitlegenie_upd_")
     try:
-        path = updater.download_asset(asset, dest_dir, progress=show)
-    except Exception as exc:  # noqa: BLE001 - report any download failure cleanly
-        print(ui.red(f"\n  Download failed: {exc}"))
-        print(ui.dim("  You can download it manually: ") + release.url)
-        return
-    print(ui.green(f"\n  Saved to {path}"))
-    print(ui.dim("  Unzip it and replace your current SubtitleGenie with the new one."))
+        print(ui.dim(f"  Downloading {asset.name} ..."))
+        archive = updater.download_asset(asset, tmpdir, progress=_download_progress)
+        new_bin = updater.extract_binary(archive, install_dir)
+    except Exception as exc:  # noqa: BLE001
+        print(ui.red(f"\n  Update failed: {exc}"))
+        print(ui.dim("  Manual download: ") + release.url)
+        return False
+    finally:
+        import shutil
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+    if not new_bin:
+        print(ui.red("\n  Couldn't find the new binary inside the download."))
+        print(ui.dim("  Manual download: ") + release.url)
+        return False
+
+    print(ui.green(f"\n  Installed {os.path.basename(new_bin)}") +
+          ui.dim(f"  (next to your current version, in {install_dir})"))
+
+    # Hand off to the new version. Because the new file has its own versioned
+    # name, there's no clash with the still-running old one.
+    prompt = "Launch the new version now"
+    prompt += " with the same movie?" if movie_args else "?"
+    if ui.is_interactive() and ui.confirm(prompt, default=True):
+        print(ui.dim("  Starting the new version..."))
+        try:
+            updater.launch(new_bin, movie_args)   # POSIX: never returns
+        except Exception as exc:  # noqa: BLE001
+            print(ui.red(f"  Couldn't launch it automatically: {exc}"))
+            print(ui.dim("  Run it yourself: ") + new_bin)
+            return False
+        return True   # Windows: new console launched; caller should exit
+    print(ui.dim("  Run it any time: ") + new_bin)
+    return False
 
 
 def cmd_update(cfg: Config) -> int:
@@ -280,27 +329,29 @@ def cmd_update(cfg: Config) -> int:
 
     print(ui.bold(ui.cyan(f"\nNew version available: {release.tag}")) +
           ui.dim(f"  (you have v{__version__})"))
-    if ui.confirm("Download it now?", default=True):
-        _download_release(release, os.getcwd())
+    if ui.confirm("Download and install it?", default=True):
+        _perform_update(release, [])
     else:
         print(ui.dim("Get it any time at: ") + release.url)
     return 0
 
 
-def _maybe_check_for_update(cfg: Config, args) -> None:
+def _maybe_check_for_update(cfg: Config, args) -> bool:
     """Automatic, throttled update check at the start of a normal run.
 
-    Silent and safe: only when interactive, enabled, not suppressed, and at most
-    once a day. Any failure is swallowed - it must never disrupt the real job.
+    Returns True if we installed and launched the new version (caller should stop
+    and let the new process take over). Safe by design: only when interactive,
+    enabled, not suppressed, and at most once a day; any failure is swallowed so
+    it never disrupts the real job.
     """
     if args.no_update_check or args.yes or not cfg.updates.check_on_run:
-        return
+        return False
     if not ui.is_interactive():
-        return
+        return False
     import time
     now = time.time()
     if now - cfg.updates.last_check < 86400:  # already checked within 24h
-        return
+        return False
     cfg.updates.last_check = now
     try:
         config_module.save(cfg)
@@ -308,14 +359,13 @@ def _maybe_check_for_update(cfg: Config, args) -> None:
         pass
     release = updater.check_for_update(__version__)
     if release is None:
-        return
+        return False
     print(ui.bold(ui.cyan(f"A new version is available: {release.tag}")) +
           ui.dim(f"  (you have v{__version__})"))
-    if ui.confirm("Download it now?", default=False):
-        _download_release(release, os.getcwd())
-    else:
-        print(ui.dim("Later: run 'subtitlegenie update', or visit ") + release.url)
-    print()
+    if not ui.confirm("Update now?", default=False):
+        print(ui.dim("Later: run 'subtitlegenie update', or visit ") + release.url + "\n")
+        return False
+    return _perform_update(release, list(args.paths))
 
 
 def cmd_languages() -> int:
@@ -479,6 +529,13 @@ def cmd_setup(cfg: Config) -> int:
 # --------------------------------------------------------------------------
 
 def run_jobs(cfg: Config, args) -> int:
+    print(ui.banner())
+
+    # Offer an update before doing any work. If the user updates, the new
+    # version is launched (with the same movie[s]) and we stop here.
+    if _maybe_check_for_update(cfg, args):
+        return 0
+
     movies = collect_movies(args.paths, args.recursive)
     if not movies:
         print(ui.yellow("No movie files found in the given path(s)."))
@@ -491,8 +548,6 @@ def run_jobs(cfg: Config, args) -> int:
                      "or enable fallbacks in config."))
         return 1
 
-    print(ui.banner())
-    _maybe_check_for_update(cfg, args)
     print(ui.dim(f"Found {len(movies)} movie file(s). "
                  f"Providers: {', '.join(p.name for p in providers)}."))
 

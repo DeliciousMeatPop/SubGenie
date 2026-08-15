@@ -1,5 +1,7 @@
 """Tests for the self-update checker (no real network)."""
 
+import os
+
 from subgenie import updater
 from subgenie.updater import Asset, Release
 
@@ -86,3 +88,58 @@ def test_download_asset_writes_file(monkeypatch, tmp_path):
     with open(path, "rb") as handle:
         assert handle.read() == b"abcdef"
     assert seen[-1] == (6, 6)
+
+
+def test_current_binary_none_from_source(monkeypatch):
+    # Not frozen -> no binary to sit beside.
+    monkeypatch.delattr(updater.sys, "frozen", raising=False)
+    assert updater.current_binary() is None
+
+
+def test_find_binary_member_skips_docs():
+    names = [
+        "SubtitleGenie-0.2.0-win-x64/README.md",
+        "SubtitleGenie-0.2.0-win-x64/CHANGELOG.md",
+        "SubtitleGenie-0.2.0-win-x64/SubtitleGenie_win_v0.2.0.exe",
+    ]
+    assert updater._find_binary_member(names).endswith("SubtitleGenie_win_v0.2.0.exe")
+
+
+def test_extract_binary_from_zip(tmp_path):
+    import zipfile
+    archive = tmp_path / "SubtitleGenie-0.2.0-win-x64.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("SubtitleGenie-0.2.0-win-x64/README.md", "readme")
+        zf.writestr("SubtitleGenie-0.2.0-win-x64/SubtitleGenie_win_v0.2.0.exe", b"MZbinary")
+    dest = tmp_path / "install"
+    out = updater.extract_binary(str(archive), str(dest))
+    assert out == str(dest / "SubtitleGenie_win_v0.2.0.exe")
+    assert (dest / "SubtitleGenie_win_v0.2.0.exe").read_bytes() == b"MZbinary"
+    # README must not be extracted.
+    assert not (dest / "README.md").exists()
+
+
+def test_extract_binary_from_targz(tmp_path):
+    import io
+    import tarfile
+    archive = tmp_path / "SubtitleGenie-0.2.0-linux-x64.tar.gz"
+    with tarfile.open(archive, "w:gz") as tf:
+        data = b"\x7fELFbinary"
+        info = tarfile.TarInfo("SubtitleGenie-0.2.0-linux-x64/SubtitleGenie_linux_v0.2.0")
+        info.size = len(data)
+        tf.addfile(info, io.BytesIO(data))
+    dest = tmp_path / "install"
+    out = updater.extract_binary(str(archive), str(dest))
+    assert out.endswith("SubtitleGenie_linux_v0.2.0")
+    assert (dest / "SubtitleGenie_linux_v0.2.0").read_bytes() == b"\x7fELFbinary"
+    # Executable bit set on POSIX.
+    if os.name != "nt":
+        assert os.access(out, os.X_OK)
+
+
+def test_extract_binary_returns_none_when_no_binary(tmp_path):
+    import zipfile
+    archive = tmp_path / "empty.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.writestr("folder/README.md", "just docs")
+    assert updater.extract_binary(str(archive), str(tmp_path / "out")) is None

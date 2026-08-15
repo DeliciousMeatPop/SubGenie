@@ -83,10 +83,10 @@ jobs:
             osname: linux
           - os: windows-latest
             label: windows-x64
-            osname: windows
+            osname: win
           - os: macos-latest
             label: macos-arm64
-            osname: macos
+            osname: mac
     runs-on: ${{ matrix.os }}
     env:
       VERSION: ${{ needs.version.outputs.version }}
@@ -124,7 +124,7 @@ jobs:
         shell: bash
         run: |
           STAGE="SubtitleGenie-${VERSION}-${LABEL}"
-          BIN="SubtitleGenie_v${VERSION}_${OSNAME}"
+          BIN="SubtitleGenie_${OSNAME}_v${VERSION}"
           mkdir -p "dist/$STAGE"
           cp dist/subtitlegenie "dist/$STAGE/$BIN"
           cp README.md CHANGELOG.md "dist/$STAGE/"
@@ -136,7 +136,7 @@ jobs:
         shell: pwsh
         run: |
           $stage = "SubtitleGenie-$env:VERSION-$env:LABEL"
-          $bin = "SubtitleGenie_v${env:VERSION}_${env:OSNAME}.exe"
+          $bin = "SubtitleGenie_${env:OSNAME}_v${env:VERSION}.exe"
           New-Item -ItemType Directory -Force -Path "dist/$stage" | Out-Null
           Copy-Item "dist/subtitlegenie.exe" "dist/$stage/$bin"
           Copy-Item "README.md","CHANGELOG.md" "dist/$stage/"

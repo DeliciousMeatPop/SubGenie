@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import sys
 from dataclasses import dataclass, field
 from typing import Callable, Optional
@@ -151,3 +152,89 @@ def download_asset(
                 if progress:
                     progress(done, total)
     return dest
+
+
+# ---- installing an update in place ---------------------------------------
+
+def current_binary() -> Optional[str]:
+    """Path to the running standalone executable, or None when run from source.
+
+    When frozen by PyInstaller, ``sys.frozen`` is set and ``sys.executable`` is
+    our own binary. From a source checkout there is no binary to sit beside, so
+    we return None and callers fall back to a plain download.
+    """
+    if getattr(sys, "frozen", False):
+        return os.path.abspath(sys.executable)
+    return None
+
+
+def _find_binary_member(names: list[str]) -> Optional[str]:
+    """Pick the executable entry out of an archive's member list."""
+    for name in names:
+        base = os.path.basename(name)
+        if not base:
+            continue
+        lower = base.lower()
+        if lower.startswith("subtitlegenie_") and not lower.endswith((".md", ".txt")):
+            return name
+    return None
+
+
+def extract_binary(archive_path: str, dest_dir: str) -> Optional[str]:
+    """Extract just the SubtitleGenie executable from an archive into dest_dir.
+
+    Writes it flat (its own versioned basename, e.g. SubtitleGenie_win_v0.2.0.exe)
+    right next to the current binary. Because every version has a unique name,
+    the new file never collides with the running one. Returns the new path, or
+    None if no executable member was found.
+    """
+    os.makedirs(dest_dir, exist_ok=True)
+    lower = archive_path.lower()
+
+    if lower.endswith(".zip"):
+        import zipfile
+        with zipfile.ZipFile(archive_path) as archive:
+            member = _find_binary_member(archive.namelist())
+            if not member:
+                return None
+            out = os.path.join(dest_dir, os.path.basename(member))
+            with archive.open(member) as src, open(out, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+    elif lower.endswith((".tar.gz", ".tgz")):
+        import tarfile
+        with tarfile.open(archive_path, "r:gz") as archive:
+            member = _find_binary_member(archive.getnames())
+            if not member:
+                return None
+            extracted = archive.extractfile(member)
+            if extracted is None:
+                return None
+            out = os.path.join(dest_dir, os.path.basename(member))
+            with extracted as src, open(out, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+    else:
+        return None
+
+    if os.name != "nt":
+        os.chmod(out, 0o755)
+    return out
+
+
+def launch(binary: str, args: list[str]) -> None:
+    """Start the freshly-installed binary, handing control over to it.
+
+    POSIX: replaces the current process with the new binary (``os.execv``), so it
+    inherits the same terminal seamlessly - this call never returns. Windows:
+    spawns the new binary in its own console and returns, so the caller should
+    then exit; the old window closes and the new one takes over.
+    """
+    binary = os.path.abspath(binary)
+    argv = [binary] + list(args)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    if os.name == "nt":
+        import subprocess
+        creationflags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+        subprocess.Popen(argv, creationflags=creationflags, close_fds=False)
+        return
+    os.execv(binary, argv)  # replaces this process; does not return
