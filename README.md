@@ -231,10 +231,25 @@ subtitlegenie setup             Interactive first-time configuration
 subtitlegenie config --show     Print current settings and their location
 subtitlegenie config --set K V  Set a config key (repeatable)
 subtitlegenie languages         List every supported language and its codes
+subtitlegenie update            Check for a newer version and offer to download it
 subtitlegenie --version
 ```
 
 (`subgenie` works everywhere `subtitlegenie` does.)
+
+### Staying up to date
+
+On a normal run SubtitleGenie quietly checks GitHub for a newer release (at most
+once a day) and, if there's one, asks whether to download the build for your OS.
+You can also check any time with `subtitlegenie update`. To skip the check for a
+single run use `--no-update-check`; to turn the automatic check off for good:
+
+```bash
+subtitlegenie config --set updates.check_on_run false
+```
+
+Downloads land in the current folder as `SubtitleGenie_v<version>_<os>` inside
+the release archive — unzip and replace your existing copy.
 
 ---
 

@@ -18,7 +18,7 @@ import os
 import sys
 from typing import Optional
 
-from . import __version__, config as config_module, ui
+from . import __version__, config as config_module, ui, updater
 from .config import (
     ACTION_EMBED, ACTION_SIDECAR, ASK, NEVER,
     MODE_ALWAYS, MODE_NEVER, MODE_SMART,
@@ -37,7 +37,7 @@ from .providers.base import Provider
 # argument parsing
 # --------------------------------------------------------------------------
 
-KNOWN_COMMANDS = {"setup", "config", "languages"}
+KNOWN_COMMANDS = {"setup", "config", "languages", "update"}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -74,6 +74,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Ask about every decision this run (like mode=always).")
     parser.add_argument("-r", "--recursive", action="store_true",
                         help="Recurse into subfolders when given a directory.")
+    parser.add_argument("--no-update-check", dest="no_update_check", action="store_true",
+                        help="Skip the automatic 'is there a newer version?' check this run.")
     return parser
 
 
@@ -235,6 +237,87 @@ def _print_result(result) -> None:
 # subcommands
 # --------------------------------------------------------------------------
 
+def _download_release(release, dest_dir: str) -> None:
+    """Download the OS-appropriate asset for a release into dest_dir."""
+    asset = updater.pick_asset(release.assets)
+    if asset is None:
+        print(ui.yellow("  No prebuilt download found for your OS in that release."))
+        print(ui.dim("  Get it here: ") + release.url)
+        return
+
+    print(ui.dim(f"  Downloading {asset.name} ..."))
+
+    def show(done: int, total: int) -> None:
+        if total and sys.stdout.isatty():
+            pct = int(done * 100 / total)
+            print(f"\r  {pct:3d}%  ({done // 1024} / {total // 1024} KiB)", end="", flush=True)
+
+    try:
+        path = updater.download_asset(asset, dest_dir, progress=show)
+    except Exception as exc:  # noqa: BLE001 - report any download failure cleanly
+        print(ui.red(f"\n  Download failed: {exc}"))
+        print(ui.dim("  You can download it manually: ") + release.url)
+        return
+    print(ui.green(f"\n  Saved to {path}"))
+    print(ui.dim("  Unzip it and replace your current SubtitleGenie with the new one."))
+
+
+def cmd_update(cfg: Config) -> int:
+    print(ui.banner())
+    print(ui.dim(f"\nInstalled: v{__version__}. Checking {updater.REPO} for a newer release..."))
+    release = updater.fetch_latest()
+    if release is None:
+        print(ui.yellow("Couldn't reach GitHub to check for updates right now."))
+        return 1
+    # Record the check so the automatic one doesn't immediately re-fire.
+    import time
+    cfg.updates.last_check = time.time()
+    config_module.save(cfg)
+
+    if not updater.is_newer(release.version, __version__):
+        print(ui.green(f"You're up to date (latest is {release.tag})."))
+        return 0
+
+    print(ui.bold(ui.cyan(f"\nNew version available: {release.tag}")) +
+          ui.dim(f"  (you have v{__version__})"))
+    if ui.confirm("Download it now?", default=True):
+        _download_release(release, os.getcwd())
+    else:
+        print(ui.dim("Get it any time at: ") + release.url)
+    return 0
+
+
+def _maybe_check_for_update(cfg: Config, args) -> None:
+    """Automatic, throttled update check at the start of a normal run.
+
+    Silent and safe: only when interactive, enabled, not suppressed, and at most
+    once a day. Any failure is swallowed - it must never disrupt the real job.
+    """
+    if args.no_update_check or args.yes or not cfg.updates.check_on_run:
+        return
+    if not ui.is_interactive():
+        return
+    import time
+    now = time.time()
+    if now - cfg.updates.last_check < 86400:  # already checked within 24h
+        return
+    cfg.updates.last_check = now
+    try:
+        config_module.save(cfg)
+    except OSError:
+        pass
+    release = updater.check_for_update(__version__)
+    if release is None:
+        return
+    print(ui.bold(ui.cyan(f"A new version is available: {release.tag}")) +
+          ui.dim(f"  (you have v{__version__})"))
+    if ui.confirm("Download it now?", default=False):
+        _download_release(release, os.getcwd())
+    else:
+        print(ui.dim("Later: run 'subtitlegenie update', or visit ") + release.url)
+    print()
+
+
 def cmd_languages() -> int:
     from .languages import all_languages
     print(ui.bold("Supported languages") + ui.dim("  (sidecar code / 3-letter / name)"))
@@ -294,6 +377,13 @@ def _apply_dotted(cfg: Config, key: str, value: str) -> bool:
         elif parts[:1] == ["prompts"] and len(parts) == 2:
             if hasattr(cfg.prompts, parts[1]):
                 setattr(cfg.prompts, parts[1], value)
+            else:
+                return False
+        elif parts[:1] == ["updates"] and len(parts) == 2:
+            if parts[1] == "check_on_run":
+                cfg.updates.check_on_run = _as_bool(value)
+            elif parts[1] == "last_check":
+                cfg.updates.last_check = float(value)
             else:
                 return False
         else:
@@ -402,6 +492,7 @@ def run_jobs(cfg: Config, args) -> int:
         return 1
 
     print(ui.banner())
+    _maybe_check_for_update(cfg, args)
     print(ui.dim(f"Found {len(movies)} movie file(s). "
                  f"Providers: {', '.join(p.name for p in providers)}."))
 
@@ -454,6 +545,8 @@ def _dispatch_command(command: str, rest: list[str], cfg: Config) -> int:
         return cmd_setup(cfg)
     if command == "languages":
         return cmd_languages()
+    if command == "update":
+        return cmd_update(cfg)
     if command == "config":
         cfg_parser = argparse.ArgumentParser(prog="subgenie config")
         cfg_parser.add_argument("--show", action="store_true",

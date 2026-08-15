@@ -9,11 +9,15 @@ def test_roundtrip_serialization():
     cfg.defaults.languages = ["en", "es"]
     cfg.defaults.action = config.ACTION_EMBED
     cfg.prompts.mode = config.MODE_SMART
+    cfg.updates.check_on_run = False
+    cfg.updates.last_check = 1234.5
     restored = config.Config.from_dict(cfg.to_dict())
     assert restored.api_key == "abc"
     assert restored.defaults.languages == ["en", "es"]
     assert restored.defaults.action == config.ACTION_EMBED
     assert restored.prompts.mode == config.MODE_SMART
+    assert restored.updates.check_on_run is False
+    assert restored.updates.last_check == 1234.5
 
 
 def test_should_ask_mode_never():

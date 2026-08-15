@@ -10,6 +10,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **Self-update check.** On a normal run SubtitleGenie now checks GitHub for a
+  newer release (interactive, throttled to once a day) and offers to download the
+  build for your OS. Also available on demand via `subtitlegenie update`.
+  Suppress a single run with `--no-update-check`, or turn the automatic check off
+  with `config --set updates.check_on_run false`.
+- Release archives now contain a clearly named binary,
+  `SubtitleGenie_v<version>_<os>` (e.g. `SubtitleGenie_v0.2.0_windows.exe`), and
+  the build stamps that version into the binary so `--version` and the update
+  check report the release it was built from.
 - **Real 3D subtitles.** In 3D mode SubtitleGenie now rewrites the downloaded
   subtitle into a per-eye `.ass` file: for Side-by-Side it draws one copy in the
   left half and one in the right (each horizontally squeezed for Half-SBS), and

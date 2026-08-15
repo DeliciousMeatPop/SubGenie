@@ -89,6 +89,12 @@ class Prompts:
 
 
 @dataclass
+class Updates:
+    check_on_run: bool = True    # look for a newer release when SubtitleGenie runs
+    last_check: float = 0.0      # epoch seconds of the last automatic check (throttle)
+
+
+@dataclass
 class OpenSubtitlesAuth:
     # API key is required by OpenSubtitles; username/password are optional and
     # only raise your download quota.
@@ -102,6 +108,7 @@ class Config:
     opensubtitles: OpenSubtitlesAuth = field(default_factory=OpenSubtitlesAuth)
     defaults: Defaults = field(default_factory=Defaults)
     prompts: Prompts = field(default_factory=Prompts)
+    updates: Updates = field(default_factory=Updates)
     enable_fallbacks: bool = True   # use Podnapisi et al. when OpenSubtitles misses
 
     # -- ask logic ----------------------------------------------------------
@@ -162,6 +169,13 @@ class Config:
             movie_type=prompts.get("movie_type", bp.movie_type),
             overwrite=prompts.get("overwrite", bp.overwrite),
             mode=prompts.get("mode", bp.mode),
+        )
+
+        updates = data.get("updates", {}) or {}
+        bu = Updates()
+        cfg.updates = Updates(
+            check_on_run=bool(updates.get("check_on_run", bu.check_on_run)),
+            last_check=float(updates.get("last_check", bu.last_check)),
         )
         return cfg
 
