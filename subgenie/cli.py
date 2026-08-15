@@ -57,6 +57,13 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Treat input as a 3D release.")
     parser.add_argument("--2d", dest="two_d", action="store_true",
                         help="Treat input as a plain 2D release.")
+    parser.add_argument("--3d-format", dest="three_d_format",
+                        choices=["auto", "hsbs", "sbs", "hou", "ou"],
+                        help="3D layout for per-eye subtitles (default: auto-detect).")
+    parser.add_argument("--3d-depth", dest="three_d_depth", type=int,
+                        help="Per-eye horizontal shift for subtitle depth (0 = screen plane).")
+    parser.add_argument("--keep-flat", dest="keep_flat", action="store_true",
+                        help="In 3D mode, also keep the plain 2D subtitle alongside the 3D one.")
     parser.add_argument("--overwrite", action="store_true",
                         help="Replace subtitles that already exist.")
     parser.add_argument("--keep-original", action="store_true",
@@ -276,8 +283,10 @@ def _apply_dotted(cfg: Config, key: str, value: str) -> bool:
             field = parts[1]
             if field == "languages":
                 cfg.defaults.languages = [v.strip() for v in value.split(",") if v.strip()]
-            elif field in ("overwrite", "keep_original_on_embed"):
+            elif field in ("overwrite", "keep_original_on_embed", "three_d_keep_flat"):
                 setattr(cfg.defaults, field, _as_bool(value))
+            elif field == "three_d_disparity":
+                cfg.defaults.three_d_disparity = int(value)
             elif hasattr(cfg.defaults, field):
                 setattr(cfg.defaults, field, value)
             else:
@@ -416,7 +425,14 @@ def run_jobs(cfg: Config, args) -> int:
             keep_original_on_embed=args.keep_original or cfg.defaults.keep_original_on_embed,
             hearing_impaired=cfg.defaults.hearing_impaired,
             forced=cfg.defaults.forced,
+            three_d_format=args.three_d_format or cfg.defaults.three_d_format,
+            three_d_disparity=(args.three_d_depth if args.three_d_depth is not None
+                               else cfg.defaults.three_d_disparity),
+            three_d_keep_flat=args.keep_flat or cfg.defaults.three_d_keep_flat,
         )
+        if treat_as_3d and action == ACTION_EMBED and info.extension in (".mp4", ".m4v", ".mov"):
+            print(ui.yellow("  Note: MP4 can't carry positioned 3D subtitles; "
+                            "embed into MKV or use sidecar mode for proper 3D."))
         result = process_movie(info, options, providers, log=lambda m: print(ui.dim(m)))
         _print_result(result)
         if result.error:

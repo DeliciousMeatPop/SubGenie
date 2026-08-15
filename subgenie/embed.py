@@ -72,10 +72,16 @@ def embedded_languages(movie_path: str) -> set[str]:
     return {line.strip().lower() for line in output.splitlines() if line.strip()}
 
 
-def _subtitle_codec(output_ext: str) -> str:
+def _subtitle_codec(output_ext: str, tracks: "list[SubtitleTrack] | None" = None) -> str:
     ext = output_ext.lower()
     if ext in (".mp4", ".m4v", ".mov"):
+        # MP4 only carries mov_text; ASS positioning can't survive here, so 3D
+        # per-eye subtitles should be embedded into MKV instead.
         return "mov_text"
+    # Matroska: keep ASS as ASS so per-eye positioning is preserved; otherwise
+    # normalize to SRT.
+    if tracks and any(t.path.lower().endswith((".ass", ".ssa")) for t in tracks):
+        return "ass"
     return "srt"
 
 
@@ -101,7 +107,7 @@ def embed_subtitles(
 
     directory = os.path.dirname(movie_path)
     _, movie_ext = os.path.splitext(movie_path)
-    codec = _subtitle_codec(movie_ext)
+    codec = _subtitle_codec(movie_ext, tracks)
 
     fd, temp_out = tempfile.mkstemp(suffix=movie_ext, dir=directory, prefix=".subgenie_")
     os.close(fd)

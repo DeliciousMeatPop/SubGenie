@@ -14,6 +14,16 @@ def test_codec_selection():
     assert _subtitle_codec(".mov") == "mov_text"
 
 
+def test_codec_selection_ass_into_mkv():
+    # 3D per-eye subtitles are .ass; into MKV they must stay ass to keep
+    # positioning, but MP4 can only do mov_text.
+    ass_track = SubtitleTrack(path="/tmp/x.ass", language=languages.find("en"))
+    assert _subtitle_codec(".mkv", [ass_track]) == "ass"
+    assert _subtitle_codec(".mp4", [ass_track]) == "mov_text"
+    srt_track = SubtitleTrack(path="/tmp/x.srt", language=languages.find("en"))
+    assert _subtitle_codec(".mkv", [srt_track]) == "srt"
+
+
 def test_embed_raises_without_ffmpeg(monkeypatch, tmp_path):
     monkeypatch.setattr(embed, "ffmpeg_path", lambda: None)
     movie = tmp_path / "m.mkv"
