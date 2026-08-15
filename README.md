@@ -1,4 +1,4 @@
-# SubGenie 🧞
+# SubtitleGenie 🧞
 
 **Drop a movie on it. It finds the subtitles, names them, or embeds them — done.**
 
