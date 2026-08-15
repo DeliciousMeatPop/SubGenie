@@ -1,4 +1,8 @@
-## SubtitleGenie {{VERSION}}
+## SubtitleGenie 🧞 {{VERSION}}
+
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/f907702e-31cf-41b3-8983-d1dbe89b68f5" alt="Subtitle Genie" width="700">
+</p>
 
 <!--
   Default release-notes template. The workflow substitutes three placeholders
@@ -21,12 +25,12 @@ run the `subtitlegenie` executable inside. **No Python required.**
 
 | OS | Archive |
 |----|---------|
-| 🪟 Windows | `SubtitleGenie-{{VERSION}}-windows-*.zip` |
-| 🍎 macOS | `SubtitleGenie-{{VERSION}}-macos-*.tar.gz` |
-| 🐧 Linux | `SubtitleGenie-{{VERSION}}-linux-*.tar.gz` |
+| 🪟 Windows | `SubtitleGenie_Win_{{VERSION}}.zip` |
+| 🍎 MacOS | `SubtitleGenie_Mac_{{VERSION}}.tar.gz` |
+| 🐧 Linux | `SubtitleGenie_Linux_{{VERSION}}.tar.gz` |
 
 First run: `subtitlegenie setup` to add your free OpenSubtitles API key and
-pick your defaults. Then just drop a movie on it.
+pick your defaults. Then just drop a movie on it. `subgenie setup` also works!
 
 > For **embedding** subtitles into movies you also need
 > [ffmpeg](https://ffmpeg.org/download.html) on your `PATH`. Saving subtitles as
