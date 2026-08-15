@@ -25,6 +25,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   - Embedding 3D subtitles into MKV keeps them as ASS (positioning preserved);
     MP4 can't carry positioned subtitles, so use MKV or sidecar mode for 3D.
 
+### Fixed
+- Release notes now fall back to the **Unreleased** changelog section when a tag
+  has no matching `## [X.Y.Z]` heading, so notes kept under Unreleased show up in
+  the draft instead of a "no entry" placeholder.
+- The release workflow no longer overwrites an existing release. Publishing a
+  draft re-creates its tag and re-triggers the workflow; it now detects the
+  existing release and skips, preserving any manual edits. Delete the release to
+  regenerate it.
+
 ## [0.1.0] - 2026-08-15
 
 First public build. 🎉

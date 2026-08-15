@@ -33,6 +33,7 @@ jobs:
     outputs:
       tag: ${{ steps.v.outputs.tag }}
       version: ${{ steps.v.outputs.version }}
+      exists: ${{ steps.exists.outputs.exists }}
     steps:
       - id: v
         shell: bash
@@ -46,8 +47,33 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
+      # If a release for this tag already exists, we must NOT touch it - a
+      # published release you edited by hand would otherwise be overwritten when
+      # publishing the draft re-creates the tag and re-triggers this workflow.
+      - id: exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view "${{ steps.v.outputs.tag }}" \
+               -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Loud, harmless job that explains why nothing was built when we skip.
+  skip-notice:
+    needs: version
+    if: needs.version.outputs.exists == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "::notice title=Release exists::A release for ${{ needs.version.outputs.tag }} already exists. Skipping build and release so any manual edits (and a published release) are preserved. To regenerate, delete that release first, then re-run."
+
   build:
     needs: version
+    if: needs.version.outputs.exists == 'false'
     strategy:
       fail-fast: false
       matrix:
@@ -109,6 +135,7 @@ jobs:
 
   release:
     needs: [version, build]
+    if: needs.version.outputs.exists == 'false'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

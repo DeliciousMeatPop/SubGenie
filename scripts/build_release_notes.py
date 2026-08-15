@@ -50,26 +50,15 @@ def normalize(tag: str) -> tuple[str, str]:
     return tag, version
 
 
-def extract_changelog(version: str) -> str:
-    """Pull the section for ``version`` out of CHANGELOG.md.
+def _extract_section(lines: list[str], label: str) -> str:
+    """Return the body under a ``## [label]`` / ``## label`` heading, trimmed.
 
-    Matches a heading like ``## [0.2.0] - 2026-08-15`` or ``## 0.2.0`` and
-    returns everything up to the next ``## `` heading, trimmed. Falls back to a
-    helpful placeholder when there's no match.
+    Captures everything up to the next ``## `` heading or the trailing block of
+    reference-style link definitions (``[0.1.0]: https://...``) that Keep a
+    Changelog keeps at the bottom of the file.
     """
-    try:
-        with open(CHANGELOG, "r", encoding="utf-8") as handle:
-            text = handle.read()
-    except OSError:
-        return _FALLBACK_CHANGELOG
-
-    lines = text.splitlines()
-    escaped = re.escape(version)
-    # Heading for this version: '## [0.2.0]...' or '## 0.2.0...'
-    start_re = re.compile(rf"^##\s+\[?{escaped}\]?\b")
-    # Stop at the next '## ' heading, or at the trailing block of reference-style
-    # link definitions (e.g. '[0.1.0]: https://...') that Keep a Changelog keeps
-    # at the bottom of the file.
+    escaped = re.escape(label)
+    start_re = re.compile(rf"^##\s+\[?{escaped}\]?\b", re.IGNORECASE)
     ref_def_re = re.compile(r"^\[[^\]]+\]:\s+\S")
     section: list[str] = []
     capturing = False
@@ -81,8 +70,57 @@ def extract_changelog(version: str) -> str:
             continue
         if start_re.match(line):
             capturing = True
-    body = "\n".join(section).strip()
-    return body or _FALLBACK_CHANGELOG
+    return "\n".join(section).strip()
+
+
+def _looks_empty(section: str) -> bool:
+    """True when a section has no real content.
+
+    Sub-headings (``### Added``), an italic "nothing yet" placeholder, and HTML
+    comments don't count as content - a section made only of those is empty.
+    """
+    if not section:
+        return True
+    for line in section.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # Drop a leading list marker so "- _Nothing yet._" is seen as italic.
+        content = re.sub(r"^[-*+]\s*", "", stripped)
+        if content.startswith(("#", "_", "<!--")):
+            continue
+        return False  # found a real line
+    return True
+
+
+def extract_changelog(version: str) -> str:
+    """Pull the notes for ``version`` out of CHANGELOG.md.
+
+    Resolution order:
+      1. An explicit ``## [<version>]`` section (the ideal - you moved the notes
+         under a version heading before tagging).
+      2. Otherwise the ``## [Unreleased]`` section, so notes you kept there still
+         land in the release. This is what makes the common workflow "just work"
+         without hand-editing the changelog at tag time.
+      3. A helpful placeholder if both are empty/missing.
+    """
+    try:
+        with open(CHANGELOG, "r", encoding="utf-8") as handle:
+            text = handle.read()
+    except OSError:
+        return _FALLBACK_CHANGELOG
+
+    lines = text.splitlines()
+
+    exact = _extract_section(lines, version)
+    if not _looks_empty(exact):
+        return exact
+
+    unreleased = _extract_section(lines, "Unreleased")
+    if not _looks_empty(unreleased):
+        return unreleased
+
+    return _FALLBACK_CHANGELOG
 
 
 def load_template(tag: str) -> str:
