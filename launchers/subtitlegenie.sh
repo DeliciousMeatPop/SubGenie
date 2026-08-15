@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # ============================================================================
-#  SubGenie launcher for Linux.
+#  SubtitleGenie launcher for Linux.
 #
 #  Usage:
-#      ./subgenie.sh "/path/to/Movie (2014) 3D.mkv"
-#      ./subgenie.sh setup
+#      ./subtitlegenie.sh "/path/to/Movie (2014) 3D.mkv"
+#      ./subtitlegenie.sh setup
 #
 #  On many desktops you can also drop files onto this script in the file
-#  manager (mark it executable first: chmod +x subgenie.sh).
+#  manager (mark it executable first: chmod +x subtitlegenie.sh).
 #
 #  Requires Python 3.
 # ============================================================================

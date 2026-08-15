@@ -48,7 +48,7 @@ def cyan(text: str) -> str:
 
 
 def banner() -> str:
-    return bold(cyan("SubGenie")) + dim("  –  subtitles, handled.")
+    return bold(cyan("SubtitleGenie")) + dim("  –  subtitles, handled.")
 
 
 def is_interactive() -> bool:

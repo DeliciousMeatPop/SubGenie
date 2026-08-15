@@ -1,0 +1,136 @@
+name: Build & draft release
+
+# Cut a release by pushing a version tag:
+#     git tag v0.2.0 && git push origin v0.2.0
+# ...or run this workflow manually from the Actions tab and type a version in.
+#
+# It builds a standalone SubtitleGenie executable for Windows, macOS and Linux,
+# then opens a DRAFT GitHub release with those archives attached and the notes
+# pre-filled from CHANGELOG.md via .github/RELEASE_TEMPLATE.md. Nothing is ever
+# published automatically - you review the draft and hit publish.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (e.g. v0.2.0)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Resolve the tag/version once so build and release agree on names.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.version }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          case "$TAG" in v*) ;; *) TAG="v$TAG";; esac
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: linux-x64
+          - os: windows-latest
+            label: windows-x64
+          - os: macos-latest
+            label: macos-arm64
+    runs-on: ${{ matrix.os }}
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      LABEL: ${{ matrix.label }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install project and PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+          pip install pyinstaller
+
+      - name: Build standalone executable
+        run: pyinstaller --onefile --name subtitlegenie --clean --noconfirm run.py
+
+      - name: Stage and archive (Linux/macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          STAGE="SubtitleGenie-${VERSION}-${LABEL}"
+          mkdir -p "dist/$STAGE"
+          cp dist/subtitlegenie "dist/$STAGE/"
+          cp README.md CHANGELOG.md "dist/$STAGE/"
+          tar -C dist -czf "${STAGE}.tar.gz" "$STAGE"
+          echo "ASSET=${STAGE}.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Stage and archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $stage = "SubtitleGenie-$env:VERSION-$env:LABEL"
+          New-Item -ItemType Directory -Force -Path "dist/$stage" | Out-Null
+          Copy-Item "dist/subtitlegenie.exe" "dist/$stage/"
+          Copy-Item "README.md","CHANGELOG.md" "dist/$stage/"
+          Compress-Archive -Path "dist/$stage/*" -DestinationPath "$stage.zip" -Force
+          "ASSET=$stage.zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.label }}
+          path: ${{ env.ASSET }}
+          if-no-files-found: error
+
+  release:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Build release notes
+        run: python scripts/build_release_notes.py "${{ needs.version.outputs.tag }}" release_body.md
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: SubtitleGenie ${{ needs.version.outputs.version }}
+          body_path: release_body.md
+          draft: true
+          files: artifacts/**

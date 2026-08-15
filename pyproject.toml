@@ -9,7 +9,7 @@ description = "Drop a movie on it; it finds, names, and/or embeds subtitles in a
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
-authors = [{ name = "SubGenie" }]
+authors = [{ name = "SubtitleGenie" }]
 keywords = ["subtitles", "opensubtitles", "movies", "ffmpeg", "plex", "jellyfin", "3d"]
 classifiers = [
     "Environment :: Console",
@@ -27,6 +27,8 @@ dependencies = [
 dev = ["pytest>=7.0"]
 
 [project.scripts]
+# Branded command plus a short alias that matches the repo/package name.
+subtitlegenie = "subgenie.cli:main"
 subgenie = "subgenie.cli:main"
 
 [project.urls]

@@ -5,7 +5,7 @@ want to be. Every interactive decision (which languages, sidecar vs embed,
 2D vs 3D, whether to overwrite) has:
 
   * a stored **default** value, and
-  * an **ask policy** (``ask`` or ``never``) saying whether SubGenie should
+  * an **ask policy** (``ask`` or ``never``) saying whether SubtitleGenie should
     stop and ask, or silently use that default.
 
 A single global **mode** sits on top:
@@ -29,15 +29,15 @@ from typing import Any
 # ---- where the config file lives ------------------------------------------
 
 def config_dir() -> str:
-    """Return SubGenie's config directory, following each OS's convention."""
+    """Return SubtitleGenie's config directory, following each OS's convention."""
     if os.name == "nt":  # Windows
         base = os.environ.get("APPDATA") or os.path.expanduser("~")
-        return os.path.join(base, "SubGenie")
+        return os.path.join(base, "SubtitleGenie")
     if os.sys.platform == "darwin":  # macOS
-        return os.path.join(os.path.expanduser("~"), "Library", "Application Support", "SubGenie")
+        return os.path.join(os.path.expanduser("~"), "Library", "Application Support", "SubtitleGenie")
     # Linux / other: respect XDG.
     base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(os.path.expanduser("~"), ".config")
-    return os.path.join(base, "subgenie")
+    return os.path.join(base, "subtitlegenie")
 
 
 def config_path() -> str:
@@ -103,7 +103,7 @@ class Config:
     # -- ask logic ----------------------------------------------------------
 
     def should_ask(self, decision: str) -> bool:
-        """Should SubGenie prompt the user for ``decision`` this run?
+        """Should SubtitleGenie prompt the user for ``decision`` this run?
 
         Resolves the global mode against the per-decision policy.
         """

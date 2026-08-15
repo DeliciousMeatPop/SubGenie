@@ -1,6 +1,6 @@
 """Parse what we can from a movie file *without* external services.
 
-We deliberately keep this dependency-free (no guessit) so SubGenie stays a
+We deliberately keep this dependency-free (no guessit) so SubtitleGenie stays a
 light install. The parser is heuristic but tuned for how scene/release and
 personal-library filenames actually look, and it specifically understands the
 zoo of 3D tags (SBS, HSBS, Half-OU, etc.).

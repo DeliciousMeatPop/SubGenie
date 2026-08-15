@@ -1,4 +1,4 @@
-# Runtime dependencies for SubGenie.
+# Runtime dependencies for SubtitleGenie.
 # Everything else (hashing, parsing, config, embedding orchestration) uses only
 # the Python standard library. ffmpeg is an external program, not a pip package.
 requests>=2.25

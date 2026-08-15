@@ -1,9 +1,9 @@
 @echo off
 REM ============================================================================
-REM  SubGenie launcher for Windows.
+REM  SubtitleGenie launcher for Windows.
 REM
 REM  Drag a movie file (or several) onto this .bat and drop. It hands the file
-REM  paths to SubGenie. Double-clicking with no file runs setup/help.
+REM  paths to SubtitleGenie. Double-clicking with no file runs setup/help.
 REM
 REM  Requires Python 3 on PATH (python.org installer: tick "Add to PATH").
 REM ============================================================================
@@ -23,7 +23,7 @@ if %ERRORLEVEL%==0 (
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
-    echo SubGenie exited with an error.
+    echo SubtitleGenie exited with an error.
     pause
 )
 endlocal

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Zero-install entry point.
 
-You don't have to ``pip install`` SubGenie to use it. This script lets you run
+You don't have to ``pip install`` SubtitleGenie to use it. This script lets you run
 the tool straight from the source folder, and it's what the per-OS launchers
 call. On Windows you can even drag a movie file directly onto this file.
 

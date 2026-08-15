@@ -42,11 +42,11 @@ KNOWN_COMMANDS = {"setup", "config", "languages"}
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="subgenie",
+        prog="subtitlegenie",
         description="Drop a movie on it; it finds, names, and/or embeds subtitles.",
         epilog="Commands: setup | config [--show] [--set KEY VALUE] | languages",
     )
-    parser.add_argument("--version", action="version", version=f"SubGenie {__version__}")
+    parser.add_argument("--version", action="version", version=f"SubtitleGenie {__version__}")
 
     # main run arguments (the default when the first arg is a path)
     parser.add_argument("paths", nargs="*", help="Movie file(s) or folder(s).")
@@ -371,7 +371,7 @@ def cmd_setup(cfg: Config) -> int:
     path = config_module.save(cfg)
     print(ui.green("\nSaved config to ") + path)
     if not cfg.api_key:
-        print(ui.yellow("Note: without an API key, SubGenie can only use keyless fallbacks."))
+        print(ui.yellow("Note: without an API key, SubtitleGenie can only use keyless fallbacks."))
     return 0
 
 
