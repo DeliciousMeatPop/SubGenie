@@ -10,6 +10,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **ffmpeg help & opt-in install.** When embedding is requested but ffmpeg isn't
+  found, SubtitleGenie now prints the official download link
+  (<https://ffmpeg.org/download.html>), per-OS PATH instructions, and package-
+  manager one-liners — and offers to fetch it for you. `subtitlegenie
+  install-ffmpeg` downloads an official/trusted static build (gyan.dev on
+  Windows, John Van Sickle on Linux) into `<config dir>/bin` and uses it
+  automatically; ffmpeg on PATH still takes priority. macOS is guided to
+  `brew install ffmpeg`. We don't bundle ffmpeg in releases (GPL + codec-patent
+  reasons); the on-demand download keeps that clean.
+
 - **Self-update that installs itself.** On a normal run (or via
   `subtitlegenie update`) SubtitleGenie checks GitHub for a newer release
   (interactive, throttled to once a day). If you accept, it downloads the archive

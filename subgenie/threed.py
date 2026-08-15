@@ -117,9 +117,9 @@ def parse_srt(text: str) -> list[SrtEvent]:
 
 def video_resolution(path: str) -> tuple[int, int]:
     """Return (width, height) via ffprobe, or the 1080p default if unavailable."""
-    import shutil
+    from . import ffmpeg as ffmpeg_tools
 
-    ffprobe = shutil.which("ffprobe")
+    ffprobe = ffmpeg_tools.ffprobe_path()
     if not ffprobe:
         return DEFAULT_WIDTH, DEFAULT_HEIGHT
     cmd = [

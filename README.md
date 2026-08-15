@@ -218,8 +218,26 @@ downloaded subtitles into the movie using ffmpeg — copying all existing stream
 language metadata and forced disposition. The original is only replaced after a
 successful mux; use `--keep-original` to leave a `.bak` copy behind.
 
-If ffmpeg isn't installed, SubtitleGenie tells you and safely falls back to
-sidecar files so your download isn't wasted.
+### Getting ffmpeg (only needed for embedding)
+
+Sidecar mode needs nothing extra. Embedding needs ffmpeg, and if it isn't found
+SubtitleGenie explains how to get it (with your OS's package-manager one-liner
+and the official link, <https://ffmpeg.org/download.html>) and offers to fetch
+it for you:
+
+```bash
+subtitlegenie install-ffmpeg
+```
+
+That downloads an official/trusted static build into SubtitleGenie's own folder
+(`<config dir>/bin`) and uses it automatically — no PATH changes, and it's found
+on PATH first if you already have it. We **don't** bundle ffmpeg in releases: the
+useful builds are GPL and carry codec-patent baggage, so shipping them would drag
+in license/patent obligations. Letting you pull an official build on demand keeps
+that clean. On macOS the recommended route is `brew install ffmpeg`.
+
+If ffmpeg still isn't present, SubtitleGenie safely falls back to sidecar files
+so your download isn't wasted.
 
 ---
 
@@ -232,6 +250,7 @@ subtitlegenie config --show     Print current settings and their location
 subtitlegenie config --set K V  Set a config key (repeatable)
 subtitlegenie languages         List every supported language and its codes
 subtitlegenie update            Check for a newer version and offer to download it
+subtitlegenie install-ffmpeg    Fetch ffmpeg into SubtitleGenie's folder (for embedding)
 subtitlegenie --version
 ```
 
