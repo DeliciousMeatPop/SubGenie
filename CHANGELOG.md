@@ -15,6 +15,8 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   French, German, Italian, Portuguese (Portugal + Brazil), and Dutch. Works
   anywhere `all` does (`--langs common`, the interactive picker, defaults).
 
+## [0.0.8] - 2026-08-16
+
 ### Fixed
 - **3D subtitles no longer float in the middle of the picture.** On letterboxed
   (cinemascope) 3D releases the per-eye subtitles were placed by frame percentage,
