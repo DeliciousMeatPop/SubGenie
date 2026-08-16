@@ -152,3 +152,22 @@ def existing_sidecar_languages(info: MovieInfo) -> set[str]:
         if parts and parts[0]:
             langs.add(parts[0].lower())
     return langs
+
+
+def sidecar_subtitle_files(info: MovieInfo) -> list[str]:
+    """Full paths of subtitle files sitting next to the movie (its sidecars).
+
+    Matches ``<moviename>.<...>.<ext>`` for known subtitle extensions. Used by
+    the sync-in-place flow to re-time subtitles you already have.
+    """
+    found: list[str] = []
+    prefix = info.filename + "."
+    try:
+        siblings = sorted(os.listdir(info.directory))
+    except OSError:
+        return found
+    for name in siblings:
+        ext = os.path.splitext(name)[1].lower()
+        if ext in SUBTITLE_EXTENSIONS and name.startswith(prefix):
+            found.append(os.path.join(info.directory, name))
+    return found

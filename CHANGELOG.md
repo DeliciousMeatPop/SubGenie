@@ -9,7 +9,21 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-_Nothing yet — new entries go here and are moved under a version heading automatically at release time._
+### Fixed
+- **Embedding no longer fails with "the process cannot access the file".** On
+  Windows a just-written large movie is briefly locked (antivirus/indexer), which
+  made the final file swap fail and lose the whole embed. The swap now retries
+  with backoff, and the error message points at the real cause if it still can't.
+
+### Changed
+- **`--sync` now re-times the subtitles you already have, in place** — no
+  downloading, no language picker, no embedding. The workflow is: get subs, and
+  if they're off, run `--sync-offset SECONDS` (fixed shift, no extra tools) or
+  `--sync` (auto-align via ffsubsync). Auto-align clearly says up front when
+  ffsubsync isn't installed and suggests `--sync-offset` instead of doing nothing.
+- **Self-update deletes the old version.** After the new build launches, the
+  previous executable is removed automatically (it couldn't delete its own
+  running file before), so old versions don't pile up next to it.
 
 ## [0.1.0] - 2026-08-16
 

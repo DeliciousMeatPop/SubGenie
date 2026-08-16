@@ -62,3 +62,21 @@ def test_existing_sidecar_languages(tmp_path):
     assert "en" in langs
     assert "es" in langs
     assert "fr" not in langs
+
+
+def test_sidecar_subtitle_files_lists_only_matching(tmp_path):
+    movie = tmp_path / "The Film (2020) 1080p.mkv"
+    movie.write_bytes(b"x")
+    (tmp_path / "The Film (2020) 1080p.en.srt").write_text("1")
+    (tmp_path / "The Film (2020) 1080p.es.ass").write_text("1")
+    (tmp_path / "The Film (2020) 1080p.fr.forced.srt").write_text("1")
+    (tmp_path / "Unrelated Movie.en.srt").write_text("1")   # different movie
+    (tmp_path / "notes.txt").write_text("1")                 # not a subtitle
+
+    info = mediainfo.parse(str(movie))
+    files = [os.path.basename(p) for p in mediainfo.sidecar_subtitle_files(info)]
+    assert "The Film (2020) 1080p.en.srt" in files
+    assert "The Film (2020) 1080p.es.ass" in files
+    assert "The Film (2020) 1080p.fr.forced.srt" in files
+    assert "Unrelated Movie.en.srt" not in files
+    assert "notes.txt" not in files

@@ -136,15 +136,25 @@ subtitlegenie movie.mkv --ask                 # ask about everything this run
 
 ### Fixing out-of-sync subtitles
 
-Hash-matched OpenSubtitles results are already synced, but a fallback subtitle
-can be off. Two options:
+`--sync` and `--sync-offset` re-time the subtitles you **already have** next to
+the movie — they don't download or embed anything. Grab subs first, then if
+they're off:
 
+```bash
+subtitlegenie "Movie (2020).mkv" --sync-offset -2.5   # shift 2.5s earlier
+subtitlegenie "Movie (2020).mkv" --sync               # auto-align to the audio
+```
+
+- `--sync-offset SECONDS` applies a **fixed shift** (negative = earlier). No
+  extra tools needed — works on the standalone build.
 - `--sync` **auto-aligns** each subtitle to the movie's audio (fixes both a
-  constant offset and framerate drift). It uses
-  [ffsubsync](https://github.com/smacke/ffsubsync); install it once with
-  `pip install ffsubsync`.
-- `--sync-offset SECONDS` applies a **fixed shift** (e.g. `-2.5` to move subs
-  2.5s earlier) — no extra tools needed.
+  constant offset and framerate drift), using
+  [ffsubsync](https://github.com/smacke/ffsubsync). It's a separate Python tool
+  (`pip install ffsubsync`), so it's mainly for the run-from-source setup; on the
+  standalone `.exe`, use `--sync-offset`.
+
+Hash-matched OpenSubtitles results are already synced, so this mostly helps
+fallback subtitles.
 
 ---
 
@@ -310,7 +320,7 @@ subtitlegenie config --set updates.check_interval_hours 24   # at most once a da
 subtitlegenie config --set updates.check_on_run false        # off entirely
 ```
 
-Old versions are left in place — delete them whenever you like.
+The old version is deleted automatically once the new one starts.
 
 ---
 

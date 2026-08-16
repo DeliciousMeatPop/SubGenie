@@ -1,5 +1,7 @@
 """Tests for the embed module's logic that don't require ffmpeg installed."""
 
+import os
+
 import pytest
 
 from subgenie import embed, languages
@@ -155,3 +157,37 @@ def test_embed_marks_existing_track_default_when_pref_not_added(monkeypatch, tmp
                        existing_langs=["spa", "eng"], default_alpha3="eng")
     assert cmd[cmd.index("-disposition:s:1") + 1] == "+default"
     assert cmd[cmd.index("-disposition:s:0") + 1] == "-default"
+
+
+def test_replace_with_retry_succeeds_after_transient_lock(monkeypatch, tmp_path):
+    import time
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+    src = tmp_path / "src"; src.write_text("new")
+    dst = tmp_path / "dst"; dst.write_text("old")
+    calls = {"n": 0}
+    real_replace = os.replace
+
+    def flaky(a, b):
+        calls["n"] += 1
+        if calls["n"] < 3:                # fail twice, then succeed
+            raise OSError(32, "in use")
+        return real_replace(a, b)
+
+    monkeypatch.setattr(embed.os, "replace", flaky)
+    embed._replace_with_retry(str(src), str(dst))
+    assert dst.read_text() == "new"
+    assert calls["n"] == 3
+
+
+def test_replace_with_retry_reraises_after_exhausting(monkeypatch, tmp_path):
+    src = tmp_path / "s"; src.write_text("x")
+    dst = tmp_path / "d"; dst.write_text("y")
+
+    def always_fail(a, b):
+        raise OSError(32, "locked")
+
+    monkeypatch.setattr(embed.os, "replace", always_fail)
+    import time as _t
+    monkeypatch.setattr(_t, "sleep", lambda s: None)
+    with pytest.raises(OSError):
+        embed._replace_with_retry(str(src), str(dst), attempts=3)

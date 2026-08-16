@@ -220,21 +220,60 @@ def extract_binary(archive_path: str, dest_dir: str) -> Optional[str]:
     return out
 
 
-def launch(binary: str, args: list[str]) -> None:
+CLEANUP_ENV = "SUBTITLEGENIE_CLEANUP_OLD"
+
+
+def launch(binary: str, args: list[str], cleanup_old: Optional[str] = None) -> None:
     """Start the freshly-installed binary, handing control over to it.
 
     POSIX: replaces the current process with the new binary (``os.execv``), so it
     inherits the same terminal seamlessly - this call never returns. Windows:
     spawns the new binary in its own console and returns, so the caller should
     then exit; the old window closes and the new one takes over.
+
+    ``cleanup_old`` (the path of the currently-running binary) is passed to the
+    new process via an env var so it can delete the old version once we've
+    exited - a process can't delete its own running executable.
     """
     binary = os.path.abspath(binary)
     argv = [binary] + list(args)
+    env = os.environ.copy()
+    if cleanup_old:
+        env[CLEANUP_ENV] = os.path.abspath(cleanup_old)
     sys.stdout.flush()
     sys.stderr.flush()
     if os.name == "nt":
         import subprocess
         creationflags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
-        subprocess.Popen(argv, creationflags=creationflags, close_fds=False)
+        subprocess.Popen(argv, creationflags=creationflags, close_fds=False, env=env)
         return
-    os.execv(binary, argv)  # replaces this process; does not return
+    os.execve(binary, argv, env)  # replaces this process; does not return
+
+
+def cleanup_previous_binary() -> None:
+    """Delete the old binary a just-launched update left behind, if any.
+
+    Runs in a background thread with retries: on Windows the old executable stays
+    locked until its process fully exits, which happens moments after it launched
+    us. Best-effort and silent — a leftover old version is harmless.
+    """
+    old = os.environ.get(CLEANUP_ENV)
+    if not old:
+        return
+    running = current_binary()
+    if running and os.path.abspath(old) == os.path.abspath(running):
+        return  # never delete ourselves
+
+    import threading
+    import time
+
+    def worker() -> None:
+        for _ in range(20):
+            try:
+                if os.path.isfile(old):
+                    os.remove(old)
+                return
+            except OSError:
+                time.sleep(0.5)
+
+    threading.Thread(target=worker, daemon=True).start()

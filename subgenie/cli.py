@@ -67,9 +67,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--keep-flat", dest="keep_flat", action="store_true",
                         help="In 3D mode, also keep the plain 2D subtitle alongside the 3D one.")
     parser.add_argument("--sync", action="store_true",
-                        help="Auto-align subtitles to the movie's audio (needs ffsubsync).")
+                        help="Re-time the subtitles already next to the movie by auto-aligning "
+                             "to its audio (needs ffsubsync). Doesn't download anything.")
     parser.add_argument("--sync-offset", dest="sync_offset", type=float, metavar="SECONDS",
-                        help="Shift subtitle timing by a fixed number of seconds (may be negative).")
+                        help="Re-time existing subtitles by a fixed shift in seconds (may be "
+                             "negative). No extra tools needed.")
     parser.add_argument("--overwrite", action="store_true",
                         help="Replace subtitles that already exist.")
     parser.add_argument("--keep-original", action="store_true",
@@ -312,9 +314,11 @@ def _perform_update(release, movie_args: list[str]) -> bool:
     prompt = "Launch the new version now"
     prompt += " with the same movie?" if movie_args else "?"
     if ui.is_interactive() and ui.confirm(prompt, default=True):
-        print(ui.dim("  Starting the new version..."))
+        print(ui.dim("  Starting the new version (the old one will be removed)..."))
         try:
-            updater.launch(new_bin, movie_args)   # POSIX: never returns
+            # Hand the old binary's path to the new process so it can delete it
+            # once we've exited (a process can't delete its own running exe).
+            updater.launch(new_bin, movie_args, cleanup_old=updater.current_binary())
         except Exception as exc:  # noqa: BLE001
             print(ui.red(f"  Couldn't launch it automatically: {exc}"))
             print(ui.dim("  Run it yourself: ") + new_bin)
@@ -608,6 +612,83 @@ def cmd_setup(cfg: Config) -> int:
 # main run
 # --------------------------------------------------------------------------
 
+def _run_sync_existing(cfg: Config, args) -> int:
+    """Re-time the subtitle files already sitting next to the movie(s).
+
+    No downloading, no picker, no embedding — the workflow is: you already have
+    subtitles, they're out of sync, so `--sync` (auto, via ffsubsync) or
+    `--sync-offset SECONDS` (fixed shift, no tools) fixes them in place.
+    """
+    from . import sync as sync_mod
+    from .mediainfo import sidecar_subtitle_files
+    from .textenc import decode_subtitle
+
+    movies = collect_movies(args.paths, args.recursive)
+    if not movies:
+        print(ui.yellow("No movie files found in the given path(s)."))
+        return 1
+
+    auto = bool(args.sync)
+    if auto and not sync_mod.autosync_available():
+        print(ui.yellow("--sync auto-align needs 'ffsubsync', which isn't installed."))
+        print(ui.dim(sync_mod.install_hint()))
+        if not args.sync_offset:
+            print(ui.dim("Nothing to do. Use --sync-offset SECONDS for a fixed shift "
+                         "(no tools needed), or install ffsubsync for auto-align."))
+            return 1
+        auto = False  # fall back to the offset-only shift
+
+    # Text formats we can shift by a fixed offset (SRT-style timestamps).
+    shiftable = (".srt", ".vtt")
+    exit_code = 0
+    for movie_path in movies:
+        info = parse(movie_path)
+        subs = sidecar_subtitle_files(info)
+        print("\n" + ui.bold(os.path.basename(movie_path)))
+        if not subs:
+            print(ui.yellow("  No subtitle files found next to this movie."))
+            continue
+        for sub in subs:
+            name = os.path.basename(sub)
+            ext = os.path.splitext(sub)[1].lower()
+            try:
+                if auto:
+                    print(ui.dim(f"  aligning {name}…"))
+                    with open(sub, "rb") as handle:
+                        text = decode_subtitle(handle.read())
+                    synced = sync_mod.autosync(movie_path, text)
+                    if synced is None:
+                        print(ui.yellow(f"  - {name}: auto-align failed"))
+                        exit_code = 2
+                        continue
+                    text = synced
+                    if args.sync_offset:
+                        text = sync_mod.shift_srt(text, args.sync_offset)
+                    with open(sub, "w", encoding="utf-8") as handle:
+                        handle.write(text)
+                    print(ui.green(f"  + {name}: aligned"))
+                else:
+                    if ext not in shiftable:
+                        print(ui.dim(f"  = {name}: skipped (offset shift only supports .srt/.vtt)"))
+                        continue
+                    with open(sub, "rb") as handle:
+                        text = decode_subtitle(handle.read())
+                    text = sync_mod.shift_srt(text, args.sync_offset)
+                    with open(sub, "w", encoding="utf-8") as handle:
+                        handle.write(text)
+                    print(ui.green(f"  + {name}: shifted {args.sync_offset:+g}s"))
+            except OSError as exc:
+                print(ui.red(f"  ! {name}: {exc}"))
+                exit_code = 2
+
+    if ui.is_interactive():
+        try:
+            input(ui.dim("\nDone. Press Enter to close."))
+        except (EOFError, KeyboardInterrupt):
+            pass
+    return exit_code
+
+
 def run_jobs(cfg: Config, args) -> int:
     print(ui.banner())
 
@@ -615,6 +696,11 @@ def run_jobs(cfg: Config, args) -> int:
     # version is launched (with the same movie[s]) and we stop here.
     if _maybe_check_for_update(cfg, args):
         return 0
+
+    # --sync / --sync-offset re-time the subtitles you already have next to the
+    # movie — no downloading, no picker, no embedding.
+    if args.sync or args.sync_offset:
+        return _run_sync_existing(cfg, args)
 
     movies = collect_movies(args.paths, args.recursive)
     if not movies:
@@ -646,12 +732,6 @@ def run_jobs(cfg: Config, args) -> int:
                      "handle many embedded tracks poorly — sidecar mode is more reliable "
                      "for large sets."))
 
-    if args.sync:
-        from . import sync as sync_mod
-        if not sync_mod.autosync_available():
-            print(ui.yellow("--sync needs ffsubsync, which isn't installed."))
-            print(ui.dim(sync_mod.install_hint()))
-
     exit_code = 0
     for movie_path in movies:
         info = parse(movie_path)
@@ -668,8 +748,6 @@ def run_jobs(cfg: Config, args) -> int:
             three_d_disparity=(args.three_d_depth if args.three_d_depth is not None
                                else cfg.defaults.three_d_disparity),
             three_d_keep_flat=args.keep_flat or cfg.defaults.three_d_keep_flat,
-            sync=args.sync,
-            sync_offset=args.sync_offset or 0.0,
             embed_tag=cfg.defaults.embed_tag,
             default_language=_preferred_default_language(cfg),
         )
@@ -717,6 +795,9 @@ def _dispatch_command(command: str, rest: list[str], cfg: Config) -> int:
 
 def main(argv: Optional[list[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    # If we were launched by a self-update, delete the old binary in the
+    # background once it releases its lock.
+    updater.cleanup_previous_binary()
     cfg = config_module.load()
 
     # Dispatch subcommands by first token so drag-dropped paths (which come

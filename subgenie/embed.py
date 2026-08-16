@@ -274,18 +274,38 @@ def embed_subtitles(
     if keep_original:
         backup = movie_path + ".subgenie.bak"
         try:
-            os.replace(movie_path, backup)
+            _replace_with_retry(movie_path, backup)
         except OSError as exc:
             _safe_remove(temp_out)
             raise EmbedError(f"Could not back up original: {exc}") from exc
 
     try:
-        os.replace(temp_out, movie_path)
+        _replace_with_retry(temp_out, movie_path)
     except OSError as exc:
         _safe_remove(temp_out)
-        raise EmbedError(f"Could not replace original movie file: {exc}") from exc
+        raise EmbedError(
+            f"Could not replace the movie file: {exc}\n"
+            "Something has it open — close the movie in your player, and antivirus "
+            "may be scanning the freshly-written file. Try again, or use sidecar mode."
+        ) from exc
 
     return movie_path
+
+
+def _replace_with_retry(src: str, dst: str, attempts: int = 6) -> None:
+    """os.replace with retries — Windows briefly locks just-written large files
+    (antivirus / indexer), which makes the swap fail with a sharing violation."""
+    import time
+    delay = 0.5
+    for attempt in range(attempts):
+        try:
+            os.replace(src, dst)
+            return
+        except OSError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(delay)
+            delay = min(delay * 2, 4.0)
 
 
 def _movie_duration(movie_path: str) -> Optional[float]:
