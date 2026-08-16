@@ -9,7 +9,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-_Nothing yet — new entries go here and are moved under a version heading automatically at release time._
+### Changed
+- The update check now runs on **every** launch (it's silent when you're up to
+  date) instead of at most once a day, so a new release is noticed right away.
+  Throttle it with `config --set updates.check_interval_hours N`, skip a single
+  run with `--no-update-check`, or turn it off with
+  `config --set updates.check_on_run false`.
 
 ## [0.0.5] - 2026-08-16
 
