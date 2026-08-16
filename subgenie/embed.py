@@ -1,14 +1,21 @@
 """Mux subtitle files into a movie container using ffmpeg.
 
-We copy all existing streams and add each subtitle as a new soft-subtitle track
-with correct language metadata and a ``forced`` disposition where appropriate.
-No video/audio re-encoding happens, so this is fast and lossless - it just
-rewrites the container.
+We copy **every existing stream untouched** and append each subtitle file as a
+new soft-subtitle track. Nothing that's already in the movie is re-encoded -
+crucially, existing subtitle tracks (which on BluRay rips are often *bitmap*
+PGS subs) are copied as-is. An earlier version forced ``-c:s <codec>`` across
+all subtitle streams, which made ffmpeg try to transcode those bitmap subs to
+text and fail with "Subtitle encoding currently only possible from text to text
+or bitmap to bitmap".
 
-MKV and MP4 need different subtitle codecs (``srt`` vs ``mov_text``); we pick
-based on the output extension. The result is written to a temp file in the same
-directory and then atomically swapped over the original (optionally keeping a
-backup), so an interrupted mux never corrupts the source file.
+So the codec and language/forced metadata are applied **only to the subtitle
+streams we add**, addressed at the right offset (after however many subtitle
+streams the movie already had). For MKV our .ass/.srt inputs are simply copied
+in; only MP4 output needs its added text subs converted to ``mov_text``.
+
+The result is written to a temp file in the same directory and then atomically
+swapped over the original (optionally keeping a backup), so an interrupted mux
+never corrupts the source file.
 """
 
 from __future__ import annotations
@@ -73,17 +80,41 @@ def embedded_languages(movie_path: str) -> set[str]:
     return {line.strip().lower() for line in output.splitlines() if line.strip()}
 
 
-def _subtitle_codec(output_ext: str, tracks: "list[SubtitleTrack] | None" = None) -> str:
-    ext = output_ext.lower()
-    if ext in (".mp4", ".m4v", ".mov"):
-        # MP4 only carries mov_text; ASS positioning can't survive here, so 3D
-        # per-eye subtitles should be embedded into MKV instead.
+def subtitle_stream_count(movie_path: str) -> int:
+    """How many subtitle streams the movie already has (0 if ffprobe absent).
+
+    This is the offset at which our newly-added subtitle streams land in the
+    output, so language/forced metadata gets applied to the right tracks.
+    """
+    probe = ffprobe_path()
+    if not probe:
+        return 0
+    cmd = [
+        probe, "-v", "error",
+        "-select_streams", "s",
+        "-show_entries", "stream=index",
+        "-of", "csv=p=0",
+        movie_path,
+    ]
+    try:
+        output = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=60, check=False
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return 0
+    return len([line for line in output.splitlines() if line.strip()])
+
+
+def _added_subtitle_codec(output_ext: str) -> str:
+    """Codec for the subtitle streams we add (existing ones are always copied).
+
+    MKV carries .ass/.srt natively, so we copy them straight in (this also keeps
+    3D per-eye ASS positioning intact). MP4 can only hold ``mov_text``, so text
+    subs are converted for it.
+    """
+    if output_ext.lower() in (".mp4", ".m4v", ".mov"):
         return "mov_text"
-    # Matroska: keep ASS as ASS so per-eye positioning is preserved; otherwise
-    # normalize to SRT.
-    if tracks and any(t.path.lower().endswith((".ass", ".ssa")) for t in tracks):
-        return "ass"
-    return "srt"
+    return "copy"
 
 
 def embed_subtitles(
@@ -108,7 +139,11 @@ def embed_subtitles(
 
     directory = os.path.dirname(movie_path)
     _, movie_ext = os.path.splitext(movie_path)
-    codec = _subtitle_codec(movie_ext, tracks)
+    added_codec = _added_subtitle_codec(movie_ext)
+
+    # Where our added subtitle streams start, in the output's subtitle-stream
+    # numbering: right after the movie's existing subtitle streams.
+    offset = subtitle_stream_count(movie_path)
 
     fd, temp_out = tempfile.mkstemp(suffix=movie_ext, dir=directory, prefix=".subgenie_")
     os.close(fd)
@@ -122,20 +157,24 @@ def embed_subtitles(
     for index in range(len(tracks)):
         cmd += ["-map", str(index + 1)]
 
-    # Copy everything; (re)encode only subtitles to the container's codec.
-    cmd += ["-c", "copy", "-c:s", codec]
+    # Copy EVERY stream by default - existing subs (even bitmap PGS) are never
+    # transcoded. We only override the codec/metadata for the subtitle streams
+    # we add, addressed at offset+i so they don't clobber the movie's own subs.
+    cmd += ["-c", "copy"]
 
-    # Per-subtitle metadata and disposition.
-    for sub_index, track in enumerate(tracks):
-        cmd += [f"-metadata:s:s:{sub_index}", f"language={track.language.alpha3}"]
+    for i, track in enumerate(tracks):
+        s = offset + i
+        if added_codec != "copy":
+            cmd += [f"-c:s:{s}", added_codec]
+        cmd += [f"-metadata:s:s:{s}", f"language={track.language.alpha3}"]
         title = track.language.name
         if track.forced:
             title += " (Forced)"
         elif track.hearing_impaired:
             title += " (SDH)"
-        cmd += [f"-metadata:s:s:{sub_index}", f"title={title}"]
+        cmd += [f"-metadata:s:s:{s}", f"title={title}"]
         if track.forced:
-            cmd += [f"-disposition:s:{sub_index}", "forced"]
+            cmd += [f"-disposition:s:{s}", "forced"]
 
     cmd.append(temp_out)
 
