@@ -20,6 +20,7 @@ from .languages import Language
 from .mediainfo import MovieInfo, existing_sidecar_languages
 from .naming import sidecar_path
 from .providers.base import Provider, ProviderError, SubtitleCandidate, SubtitleQuery
+from .textenc import decode_subtitle
 
 
 @dataclass
@@ -224,7 +225,7 @@ def _apply_sync(info, options, downloaded, log):
         if not _is_convertible_text_sub(cand.subtitle_ext):
             out.append((lang, data, cand))
             continue
-        text = data.decode("utf-8", errors="replace")
+        text = decode_subtitle(data, lang.alpha2)
         if options.sync:
             aligned = sync_mod.autosync(info.path, text)
             if aligned is not None:
@@ -304,7 +305,7 @@ def _write_3d_sidecar(info, options, lang, data, cand, result, width, height, ba
     from .threed import convert_to_3d_ass
 
     fmt = _effective_3d_format(options, info)
-    srt_text = data.decode("utf-8", errors="replace")
+    srt_text = decode_subtitle(data, lang.alpha2)
     ass_text = convert_to_3d_ass(
         srt_text, fmt, width=width, height=height,
         disparity=options.three_d_disparity, band=band,
@@ -363,7 +364,7 @@ def _place_embedded(
             if three_d and _is_convertible_text_sub(cand.subtitle_ext):
                 from .threed import convert_to_3d_ass
                 ass_text = convert_to_3d_ass(
-                    data.decode("utf-8", errors="replace"),
+                    decode_subtitle(data, lang.alpha2),
                     _effective_3d_format(options, info),
                     width=width, height=height,
                     disparity=options.three_d_disparity, band=band,
