@@ -9,6 +9,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+_Nothing yet — new entries go here and are moved under a version heading automatically at release time._
+
+## [0.1.0] - 2026-08-16
+
 ### Added
 - **Progress feedback so it doesn't look frozen.** After the 2D/3D question there
   used to be a long silent pause. SubtitleGenie now shows what it's doing at each
@@ -192,7 +196,8 @@ First public build. 🎉
 - Cross-platform drag-drop launchers for Windows, macOS, and Linux.
 - `setup`, `config`, and `languages` subcommands.
 
-[Unreleased]: https://github.com/DeliciousMeatPop/SubGenie/compare/v0.0.9...HEAD
+[Unreleased]: https://github.com/DeliciousMeatPop/SubGenie/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.1.0
 [0.0.9]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.0.9
 [0.0.7]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.0.7
 [0.0.6]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.0.6
