@@ -33,7 +33,7 @@ _Nothing yet — new entries go here and are moved under a version heading autom
   French, German, Italian, Portuguese (Portugal + Brazil), and Dutch. Works
   anywhere `all` does (`--langs common`, the interactive picker, defaults).
 
-## [0.0.8] - 2026-08-16
+## [0.0.8](https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.0.7) - 2026-08-16
 
 ### Fixed
 - **3D subtitles no longer float in the middle of the picture.** On letterboxed
