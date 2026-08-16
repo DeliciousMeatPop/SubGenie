@@ -122,6 +122,7 @@ subtitlegenie -r "/media/movies"              # folder, recursive
 
 ```bash
 subtitlegenie movie.mkv --langs en,es,fr      # just these languages
+subtitlegenie movie.mkv --langs common        # the popular set (EN, ES x2, FR, DE, IT, PT x2, NL)
 subtitlegenie movie.mkv --langs all           # every language it knows
 subtitlegenie movie.mkv --action embed        # mux into the file this time
 subtitlegenie movie.mkv --3d                  # force 3D handling

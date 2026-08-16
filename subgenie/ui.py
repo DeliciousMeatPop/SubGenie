@@ -118,8 +118,8 @@ def select_languages(default: Sequence[Language]) -> list[Language]:
 
     default_codes = ", ".join(l.sidecar_code for l in default)
     print()
-    print(dim("Enter codes/names separated by commas, 'all' for everything,"))
-    print(dim(f"or press Enter for your default ({default_codes})."))
+    print(dim("Enter codes/names separated by commas, 'common' for the popular set,"))
+    print(dim(f"'all' for everything, or press Enter for your default ({default_codes})."))
     while True:
         raw = input("Languages: ").strip()
         if not raw:

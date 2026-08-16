@@ -36,6 +36,24 @@ def test_resolve_all_expands_everything():
     assert len(found) == len(languages.all_languages())
 
 
+def test_resolve_common_expands_to_preset():
+    found, unknown = languages.resolve_many(["common"])
+    assert unknown == []
+    codes = [l.sidecar_code for l in found]
+    # The preset the user asked for: English, both Spanishes, French, German, ...
+    assert "en" in codes and "fr" in codes and "de" in codes
+    assert "es" in codes and "ea" in codes          # Spain + Latin American Spanish
+    assert "pt" in codes and "pb" in codes           # European + Brazilian Portuguese
+    # A curated subset, not everything.
+    assert 0 < len(found) < len(languages.all_languages())
+
+
+def test_common_case_insensitive_and_dedupes_with_extra():
+    found, _ = languages.resolve_many(["COMMON", "en"])
+    codes = [l.sidecar_code for l in found]
+    assert codes.count("en") == 1                     # 'en' already in common, deduped
+
+
 def test_sidecar_code_prefers_alpha2():
     assert languages.find("en").sidecar_code == "en"
 
