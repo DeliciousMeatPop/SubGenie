@@ -18,6 +18,10 @@ on:
       version:
         description: "Version to build (e.g. v0.2.0)"
         required: true
+      bundle_ffsubsync:
+        description: "Bundle ffsubsync for higher-quality --sync (experimental, bigger exe)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -116,8 +120,24 @@ jobs:
           pip install .
           pip install pyinstaller
 
+      # Optional, opt-in: bundle ffsubsync into the exe for best-quality --sync
+      # (fixes framerate drift too). Off by default and best-effort, so a normal
+      # tag-push release is never affected and can't be broken by it. The
+      # built-in ffmpeg sync engine ships regardless.
+      - name: Install ffsubsync (optional)
+        if: ${{ inputs.bundle_ffsubsync == true }}
+        continue-on-error: true
+        run: pip install ffsubsync
+
       - name: Build standalone executable
-        run: pyinstaller --onefile --name subtitlegenie --clean --noconfirm run.py
+        shell: bash
+        run: |
+          EXTRA=""
+          if python -c "import ffsubsync" 2>/dev/null; then
+            echo "ffsubsync present — bundling it."
+            EXTRA="--collect-all ffsubsync --collect-all srt"
+          fi
+          pyinstaller --onefile --name subtitlegenie --clean --noconfirm $EXTRA run.py
 
       - name: Stage and archive (Linux/macOS)
         if: runner.os != 'Windows'

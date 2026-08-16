@@ -9,7 +9,30 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-_Nothing yet — new entries go here and are moved under a version heading automatically at release time._
+### Fixed
+- **Embedding no longer fails with "the process cannot access the file".** On
+  Windows a just-written large movie is briefly locked (antivirus/indexer), which
+  made the final file swap fail and lose the whole embed. The swap now retries
+  with backoff, and the error message points at the real cause if it still can't.
+
+### Added
+- **Built-in auto-sync that works in the standalone app.** `--sync` now aligns
+  subtitles using a built-in engine that needs only ffmpeg — it detects speech in
+  the movie's audio and cross-correlates it with the subtitle to find and fix a
+  constant offset. No `pip install` required, so it works in the `.exe`. If
+  ffsubsync happens to be installed (or is bundled) it's used instead for the
+  highest quality (fixes framerate drift too), otherwise the built-in engine
+  handles the common case. (Optional: the release workflow can bundle ffsubsync
+  via a manual build toggle.)
+
+### Changed
+- **`--sync` now re-times the subtitles you already have, in place** — no
+  downloading, no language picker, no embedding. The workflow is: get subs, and
+  if they're off, run `--sync` (auto-align) or `--sync-offset SECONDS` (fixed
+  shift). It offers to fetch ffmpeg if it's missing.
+- **Self-update deletes the old version.** After the new build launches, the
+  previous executable is removed automatically (it couldn't delete its own
+  running file before), so old versions don't pile up next to it.
 
 ## [0.1.0] - 2026-08-16
 

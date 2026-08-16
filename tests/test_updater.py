@@ -143,3 +143,34 @@ def test_extract_binary_returns_none_when_no_binary(tmp_path):
     with zipfile.ZipFile(archive, "w") as zf:
         zf.writestr("folder/README.md", "just docs")
     assert updater.extract_binary(str(archive), str(tmp_path / "out")) is None
+
+
+def test_cleanup_previous_binary_deletes_old(monkeypatch, tmp_path):
+    import time
+    old = tmp_path / "SubtitleGenie_win_v0.0.1.exe"
+    old.write_bytes(b"old")
+    monkeypatch.setenv(updater.CLEANUP_ENV, str(old))
+    monkeypatch.setattr(updater, "current_binary", lambda: None)  # not frozen
+    updater.cleanup_previous_binary()
+    for _ in range(20):
+        if not old.exists():
+            break
+        time.sleep(0.05)
+    assert not old.exists()
+
+
+def test_cleanup_previous_binary_noop_without_env(monkeypatch):
+    monkeypatch.delenv(updater.CLEANUP_ENV, raising=False)
+    # Should simply return without error.
+    updater.cleanup_previous_binary()
+
+
+def test_cleanup_never_deletes_self(monkeypatch, tmp_path):
+    import time
+    me = tmp_path / "me.exe"
+    me.write_bytes(b"self")
+    monkeypatch.setenv(updater.CLEANUP_ENV, str(me))
+    monkeypatch.setattr(updater, "current_binary", lambda: str(me))
+    updater.cleanup_previous_binary()
+    time.sleep(0.2)
+    assert me.exists()  # never removed itself

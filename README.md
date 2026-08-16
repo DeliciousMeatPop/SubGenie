@@ -136,15 +136,31 @@ subtitlegenie movie.mkv --ask                 # ask about everything this run
 
 ### Fixing out-of-sync subtitles
 
-Hash-matched OpenSubtitles results are already synced, but a fallback subtitle
-can be off. Two options:
+`--sync` and `--sync-offset` re-time the subtitles you **already have** next to
+the movie — they don't download or embed anything. Grab subs first, then if
+they're off:
 
-- `--sync` **auto-aligns** each subtitle to the movie's audio (fixes both a
-  constant offset and framerate drift). It uses
-  [ffsubsync](https://github.com/smacke/ffsubsync); install it once with
-  `pip install ffsubsync`.
-- `--sync-offset SECONDS` applies a **fixed shift** (e.g. `-2.5` to move subs
-  2.5s earlier) — no extra tools needed.
+```bash
+subtitlegenie "Movie (2020).mkv" --sync-offset -2.5   # shift 2.5s earlier
+subtitlegenie "Movie (2020).mkv" --sync               # auto-align to the audio
+```
+
+- `--sync-offset SECONDS` applies a **fixed shift** (negative = earlier). Pure
+  Python, no extra tools at all.
+- `--sync` **auto-aligns** each subtitle to the movie's audio — it detects speech
+  in the audio and finds the constant offset that lines the subtitle up with it.
+  This built-in engine needs only **ffmpeg** (it offers to fetch ffmpeg if it's
+  missing), so it works on the standalone `.exe` with nothing to `pip install`.
+  It fixes the common case — a subtitle that's uniformly early or late. If
+  [ffsubsync](https://github.com/smacke/ffsubsync) happens to be installed (or was
+  bundled into your build), `--sync` uses it instead for the highest quality,
+  which also corrects framerate **drift** (a subtitle that slips further out of
+  sync as the movie plays). Install it with `pip install ffsubsync` when running
+  from source, or build the `.exe` with the workflow's optional "bundle ffsubsync"
+  toggle.
+
+Hash-matched OpenSubtitles results are already synced, so this mostly helps
+fallback subtitles.
 
 ---
 
@@ -310,7 +326,7 @@ subtitlegenie config --set updates.check_interval_hours 24   # at most once a da
 subtitlegenie config --set updates.check_on_run false        # off entirely
 ```
 
-Old versions are left in place — delete them whenever you like.
+The old version is deleted automatically once the new one starts.
 
 ---
 
