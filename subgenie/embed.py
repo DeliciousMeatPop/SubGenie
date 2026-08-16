@@ -180,11 +180,13 @@ def embed_subtitles(
     keep_original: bool = False,
     tag: str = "SG",
     default_alpha3: Optional[str] = None,
+    progress=None,
 ) -> str:
     """Mux ``tracks`` into ``movie_path`` in place. Returns the final path.
 
     Raises EmbedError if ffmpeg is missing, there are no tracks, or the mux
-    fails. The original file is only replaced after a successful mux.
+    fails. The original file is only replaced after a successful mux. ``progress``
+    (optional) is called with a 0..1 fraction as the mux proceeds.
     """
     ffmpeg = ffmpeg_path()
     if not ffmpeg:
@@ -255,15 +257,19 @@ def embed_subtitles(
     cmd.append(temp_out)
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        if progress is not None:
+            returncode, stderr_tail = _run_with_progress(cmd, movie_path, progress)
+        else:
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            returncode = result.returncode
+            stderr_tail = "\n".join(result.stderr.strip().splitlines()[-8:])
     except OSError as exc:
         _safe_remove(temp_out)
         raise EmbedError(f"Failed to launch ffmpeg: {exc}") from exc
 
-    if result.returncode != 0:
+    if returncode != 0:
         _safe_remove(temp_out)
-        tail = "\n".join(result.stderr.strip().splitlines()[-8:])
-        raise EmbedError(f"ffmpeg failed (exit {result.returncode}):\n{tail}")
+        raise EmbedError(f"ffmpeg failed (exit {returncode}):\n{stderr_tail}")
 
     if keep_original:
         backup = movie_path + ".subgenie.bak"
@@ -280,6 +286,52 @@ def embed_subtitles(
         raise EmbedError(f"Could not replace original movie file: {exc}") from exc
 
     return movie_path
+
+
+def _movie_duration(movie_path: str) -> Optional[float]:
+    probe = ffprobe_path()
+    if not probe:
+        return None
+    cmd = [probe, "-v", "error", "-show_entries", "format=duration",
+           "-of", "default=nw=1:nk=1", movie_path]
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=30).stdout.strip()
+        return float(out)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+
+
+_OUT_TIME = "out_time="
+
+
+def _run_with_progress(cmd, movie_path, progress):
+    """Run ffmpeg with -progress, reporting a 0..1 fraction. Returns (rc, tail)."""
+    duration = _movie_duration(movie_path)
+    # Insert progress reporting right after the ffmpeg binary. stderr goes to a
+    # temp file so its pipe buffer can never fill and deadlock the stdout read.
+    full = [cmd[0], "-nostats", "-progress", "pipe:1"] + cmd[1:]
+    with tempfile.TemporaryFile(mode="w+") as errfile:
+        proc = subprocess.Popen(full, stdout=subprocess.PIPE, stderr=errfile, text=True)
+        for line in proc.stdout:
+            if duration and line.startswith(_OUT_TIME):
+                seconds = _parse_out_time(line[len(_OUT_TIME):].strip())
+                if seconds is not None:
+                    progress(seconds / duration)
+        proc.wait()
+        errfile.seek(0)
+        tail = errfile.read().strip().splitlines()[-8:]
+    if proc.returncode == 0:
+        progress(1.0)
+    return proc.returncode, "\n".join(tail)
+
+
+def _parse_out_time(value: str) -> Optional[float]:
+    # value like "00:01:23.456789" (or "N/A" early on).
+    try:
+        h, m, s = value.split(":")
+        return int(h) * 3600 + int(m) * 60 + float(s)
+    except (ValueError, AttributeError):
+        return None
 
 
 def _safe_remove(path: str) -> None:

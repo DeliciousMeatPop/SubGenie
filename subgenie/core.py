@@ -164,6 +164,7 @@ def process_movie(
     )
 
     # Query providers in order; stop early once every wanted language is covered.
+    log(f"  Searching for subtitles in {len(wanted)} language(s)…")
     all_candidates: list[SubtitleCandidate] = []
     covered: set[str] = set()
     for provider in providers:
@@ -186,12 +187,18 @@ def process_movie(
     best = best_candidate_per_language(all_candidates, options)
 
     # Download the chosen subtitles.
+    to_download = [l for l in wanted if best.get(l.alpha3) is not None]
+    if to_download:
+        log(f"  Downloading {len(to_download)} subtitle(s)…")
     downloaded: list[tuple[Language, bytes, SubtitleCandidate]] = []
+    done = 0
     for lang in wanted:
         cand = best.get(lang.alpha3)
         if cand is None:
             result.outcomes.append(LanguageOutcome(lang, "notfound", "no subtitle found"))
             continue
+        done += 1
+        log(f"    {done}/{len(to_download)}  {lang.name}")
         try:
             data = cand.provider.download(cand)
         except ProviderError as exc:
@@ -211,7 +218,7 @@ def process_movie(
     if options.action == ACTION_EMBED:
         _place_embedded(info, options, downloaded, result, log)
     else:
-        _place_sidecars(info, options, downloaded, result)
+        _place_sidecars(info, options, downloaded, result, log)
 
     return result
 
@@ -259,18 +266,33 @@ def _has_cues(data: bytes) -> bool:
     return bool(_CUE_RE.search(data))
 
 
+def _embed_progress_logger(log: Logger):
+    """Return an ffmpeg progress callback that logs percent at ~20% steps."""
+    state = {"last": -1}
+
+    def report(fraction: float) -> None:
+        pct = int(max(0.0, min(1.0, fraction)) * 100)
+        step = pct - (pct % 20)
+        if step > state["last"]:
+            state["last"] = step
+            log(f"    embedding… {step}%")
+
+    return report
+
+
 def _place_sidecars(
     info: MovieInfo,
     options: RunOptions,
     downloaded: list[tuple[Language, bytes, SubtitleCandidate]],
     result: MovieResult,
+    log: Logger = _noop,
 ) -> None:
     three_d = options.treat_as_3d
     width = height = band = None
     if three_d:
         from .threed import active_vertical_band, video_resolution
         width, height = video_resolution(info.path)
-        band = active_vertical_band(info.path, height)
+        band = active_vertical_band(info.path, height, log=log)
 
     for lang, data, cand in downloaded:
         # 3D path: rewrite text subtitles into a per-eye .ass so they display
@@ -354,7 +376,7 @@ def _place_embedded(
     if three_d:
         from .threed import active_vertical_band, video_resolution
         width, height = video_resolution(info.path)
-        band = active_vertical_band(info.path, height)
+        band = active_vertical_band(info.path, height, log=log)
 
     tracks: list[SubtitleTrack] = []
     temp_files: list[str] = []
@@ -382,6 +404,8 @@ def _place_embedded(
                 path=temp_path, language=lang,
                 forced=cand.forced, hearing_impaired=cand.hearing_impaired,
             ))
+        log(f"  Embedding {len(tracks)} subtitle track(s) into the movie… "
+            "(large files can take a while)")
         try:
             out = embed_subtitles(
                 info.path, tracks,
@@ -389,6 +413,7 @@ def _place_embedded(
                 tag=options.embed_tag,
                 default_alpha3=(options.default_language.alpha3
                                 if options.default_language else None),
+                progress=_embed_progress_logger(log),
             )
             result.embedded_path = out
             for lang, _, cand in downloaded:
@@ -400,7 +425,7 @@ def _place_embedded(
             log(f"  embed failed: {exc}")
             # Fall back to sidecars so the download isn't wasted.
             log("  falling back to sidecar files for this movie.")
-            _place_sidecars(info, options, downloaded, result)
+            _place_sidecars(info, options, downloaded, result, log)
     finally:
         for temp_path in temp_files:
             try:

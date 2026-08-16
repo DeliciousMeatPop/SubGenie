@@ -9,7 +9,17 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-_Nothing yet — new entries go here and are moved under a version heading automatically at release time._
+### Added
+- **Progress feedback so it doesn't look frozen.** After the 2D/3D question there
+  used to be a long silent pause. SubtitleGenie now shows what it's doing at each
+  step — searching, downloading (with an N/total counter), analyzing the video for
+  3D placement, and embedding with a running percentage — so you can tell it's
+  working, not stuck.
+
+### Changed
+- 3D picture-area detection (cropdetect) is faster: fewer sampled frames and no
+  audio/subtitle decoding, so the pause before 3D subtitles are written is
+  shorter.
 
 ## [0.0.9] - 2026-08-16
 
