@@ -38,7 +38,7 @@ def test_embedded_languages_empty_without_ffprobe(monkeypatch):
     assert embed.embedded_languages("/whatever.mkv") == set()
 
 
-def _run_capture(monkeypatch, movie, tracks, offset=0):
+def _run_capture(monkeypatch, movie, tracks, offset=0, existing_langs=None, **kwargs):
     """Run embed_subtitles with ffmpeg mocked; return the captured argv."""
     captured = {}
 
@@ -46,15 +46,16 @@ def _run_capture(monkeypatch, movie, tracks, offset=0):
         returncode = 0
         stderr = ""
 
-    def fake_run(cmd, **kwargs):
+    def fake_run(cmd, **kw):
         captured["cmd"] = cmd
         open(cmd[-1], "wb").close()  # simulate ffmpeg making the temp output
         return Result()
 
     monkeypatch.setattr(embed, "ffmpeg_path", lambda: "ffmpeg")
     monkeypatch.setattr(embed, "subtitle_stream_count", lambda p: offset)
+    monkeypatch.setattr(embed, "subtitle_track_languages", lambda p: existing_langs or [])
     monkeypatch.setattr(embed.subprocess, "run", fake_run)
-    embed.embed_subtitles(str(movie), tracks)
+    embed.embed_subtitles(str(movie), tracks, **kwargs)
     return captured["cmd"]
 
 
@@ -104,3 +105,53 @@ def test_embed_mp4_converts_added_to_mov_text(monkeypatch, tmp_path):
     cmd = _run_capture(monkeypatch, movie, [track], offset=0)
     # MP4 needs the added text sub converted, but only for our stream index.
     assert "-c:s:0" in cmd and "mov_text" in cmd
+
+
+def _title_for(cmd, stream_index):
+    """Find the title= metadata value for a given subtitle stream index."""
+    key = f"-metadata:s:s:{stream_index}"
+    for i, part in enumerate(cmd):
+        if part == key and cmd[i + 1].startswith("title="):
+            return cmd[i + 1][len("title="):]
+    return None
+
+
+def test_embed_tags_added_track_titles(monkeypatch, tmp_path):
+    movie = tmp_path / "m.mkv"
+    movie.write_bytes(b"x")
+    sub = tmp_path / "s.srt"; sub.write_text("1\n")
+    track = SubtitleTrack(path=str(sub), language=languages.find("de"))
+    cmd = _run_capture(monkeypatch, movie, [track], offset=0, tag="SG")
+    assert _title_for(cmd, 0) == "German [SG]"
+
+
+def test_embed_marks_preferred_added_track_default(monkeypatch, tmp_path):
+    movie = tmp_path / "m.mkv"
+    movie.write_bytes(b"x")
+    a = tmp_path / "a.srt"; a.write_text("1\n")
+    b = tmp_path / "b.srt"; b.write_text("1\n")
+    tracks = [
+        SubtitleTrack(path=str(a), language=languages.find("de")),
+        SubtitleTrack(path=str(b), language=languages.find("en")),
+    ]
+    # Movie has one existing sub (index 0); prefer English (our 2nd added -> s=2).
+    cmd = _run_capture(monkeypatch, movie, tracks, offset=1,
+                       existing_langs=["spa"], default_alpha3="eng")
+    # Existing stream 0 gets default cleared; our English (s=2) becomes default.
+    assert cmd[cmd.index("-disposition:s:0") + 1] == "-default"
+    assert "default" in cmd[cmd.index("-disposition:s:2") + 1]
+    # The other added track (German, s=1) is not default.
+    assert cmd[cmd.index("-disposition:s:1") + 1] == "0"
+
+
+def test_embed_marks_existing_track_default_when_pref_not_added(monkeypatch, tmp_path):
+    movie = tmp_path / "m.mkv"
+    movie.write_bytes(b"x")
+    sub = tmp_path / "s.srt"; sub.write_text("1\n")
+    track = SubtitleTrack(path=str(sub), language=languages.find("de"))
+    # English is already in the movie (existing index 1) and is preferred, but
+    # not among the added tracks -> that existing track becomes default.
+    cmd = _run_capture(monkeypatch, movie, [track], offset=2,
+                       existing_langs=["spa", "eng"], default_alpha3="eng")
+    assert cmd[cmd.index("-disposition:s:1") + 1] == "+default"
+    assert cmd[cmd.index("-disposition:s:0") + 1] == "-default"

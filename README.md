@@ -237,6 +237,17 @@ downloaded subtitles into the movie using ffmpeg — copying all existing stream
 language metadata and forced disposition. The original is only replaced after a
 successful mux; use `--keep-original` to leave a `.bak` copy behind.
 
+Two things make the embedded tracks pleasant to live with:
+
+- **They're tagged.** Each added track is titled like `English [SG]`, so in your
+  player's track list you can tell SubtitleGenie's subtitles from the movie's own
+  (`English [PGS]`, `Track 3`, …). Change or clear the marker with
+  `config --set defaults.embed_tag SG`.
+- **Your language auto-plays.** The track for your primary language (first in
+  `defaults.languages`) is marked the *default*, and the movie's own default is
+  cleared — so playback starts on your language even when you embedded `all`. If
+  that language is already in the movie, its existing track becomes the default.
+
 ### Getting ffmpeg (only needed for embedding)
 
 Sidecar mode needs nothing extra. Embedding needs ffmpeg, and if it isn't found

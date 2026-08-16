@@ -64,10 +64,12 @@ def test_process_movie_writes_sidecars(tmp_path):
 
     en = languages.find("en")
     es = languages.find("es")
+    en_srt = b"1\n00:00:01,000 --> 00:00:03,000\nenglish-sub\n"
+    es_srt = b"1\n00:00:01,000 --> 00:00:03,000\nspanish-sub\n"
     provider = FakeProvider({
         "eng": [_make_candidate(en, release="GROUP", downloads=100)],
         "spa": [_make_candidate(es, release="GRUPO", downloads=50)],
-    }, payloads={"eng": b"english-sub", "spa": b"spanish-sub"})
+    }, payloads={"eng": en_srt, "spa": es_srt})
 
     options = RunOptions(languages=[en, es], action=ACTION_SIDECAR)
     result = process_movie(info, options, [provider])
@@ -77,8 +79,8 @@ def test_process_movie_writes_sidecars(tmp_path):
 
     en_file = tmp_path / "The Film (2020) 1080p.en.srt"
     es_file = tmp_path / "The Film (2020) 1080p.es.srt"
-    assert en_file.read_bytes() == b"english-sub"
-    assert es_file.read_bytes() == b"spanish-sub"
+    assert en_file.read_bytes() == en_srt
+    assert es_file.read_bytes() == es_srt
 
 
 def test_process_movie_3d_writes_ass_sidecar(tmp_path):
