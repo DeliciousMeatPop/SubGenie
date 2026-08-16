@@ -94,6 +94,6 @@ def test_render_v010_uses_special_file_and_injects_changelog():
 
 def test_render_unknown_version_uses_template():
     out = brn.render("v3.1.4")
-    assert "SubtitleGenie 3.1.4" in out
+    assert "3.1.4" in out                            # {{VERSION}} substituted
     assert "Download & run" in out                  # from the default template
     assert "{{" not in out

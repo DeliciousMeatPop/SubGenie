@@ -9,6 +9,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **Embedding into a movie that already has subtitle tracks no longer fails.**
+  BluRay rips usually carry bitmap (PGS) subtitle tracks; the old mux forced
+  every subtitle stream to a text codec, so ffmpeg tried to transcode those
+  bitmaps to text and aborted the whole embed ("Subtitle encoding currently only
+  possible from text to text or bitmap to bitmap"). Existing streams are now
+  copied untouched, and the codec/language/forced metadata are applied only to
+  the subtitle streams we add — at the correct offset, so their language tags no
+  longer land on the movie's own tracks.
+
 ### Added
 - **ffmpeg help & opt-in install.** When embedding is requested but ffmpeg isn't
   found, SubtitleGenie now prints the official download link
