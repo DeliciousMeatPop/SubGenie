@@ -9,7 +9,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-_Nothing yet — new entries go here and are moved under a version heading automatically at release time._
+### Fixed
+- **3D subtitles no longer float in the middle of the picture.** On letterboxed
+  (cinemascope) 3D releases the per-eye subtitles were placed by frame percentage,
+  which on a wide, letterboxed frame drifted up toward the middle (or down into a
+  black bar). SubtitleGenie now detects the active picture area with ffmpeg
+  cropdetect and sits the subtitles just above the bottom of the *visible image*,
+  in each eye. Without ffmpeg it falls back to near the bottom of the frame.
+
+### Added
+- **Subtitle timing sync.** `--sync` auto-aligns each subtitle to the movie's
+  audio using [ffsubsync](https://github.com/smacke/ffsubsync) (fixes offset and
+  framerate drift; install with `pip install ffsubsync`). `--sync-offset SECONDS`
+  applies a fixed shift (may be negative) with no extra tools. Hash-matched
+  OpenSubtitles results are already synced, so this mainly helps fallback subs.
 
 ## [0.0.6] - 2026-08-16
 

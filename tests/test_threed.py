@@ -83,3 +83,41 @@ def test_header_has_playres():
     assert "PlayResX: 1920" in ass
     assert "PlayResY: 1080" in ass
     assert "[Events]" in ass
+
+
+import re
+
+
+def _sbs_y(ass):
+    ys = {int(m) for m in re.findall(r"\\pos\(\d+,(\d+)\)", ass)}
+    assert len(ys) == 1  # both eyes share one vertical position for SBS
+    return ys.pop()
+
+
+def test_sbs_sits_near_bottom_of_full_frame_without_band():
+    ass = threed.convert_to_3d_ass(SAMPLE_SRT, "SBS", width=1920, height=1080)
+    y = _sbs_y(ass)
+    # No band -> near the bottom of the whole frame (but not off the edge).
+    assert 0.88 * 1080 <= y <= 1080
+
+
+def test_band_places_subs_at_bottom_of_picture_not_frame():
+    # Cinemascope picture occupies rows 140..940 of a 1080 frame.
+    ass = threed.convert_to_3d_ass(
+        SAMPLE_SRT, "SBS", width=1920, height=1080, band=(140, 940)
+    )
+    y = _sbs_y(ass)
+    # Just above the picture bottom (940), and inside the picture — not down in
+    # the black bar (which is where 0.90*1080=972 would land).
+    assert 880 <= y <= 940
+    assert y < 972
+
+
+def test_over_under_band_stacks_within_each_half():
+    ass = threed.convert_to_3d_ass(
+        SAMPLE_SRT, "HOU", width=1920, height=1080, band=(100, 1000)
+    )
+    ys = sorted(int(m) for m in re.findall(r"\\pos\(\d+,(\d+)\)", ass))
+    # Two distinct heights: bottom of the top picture (~mid) and bottom overall.
+    top_eye, bottom_eye = ys[0], ys[-1]
+    assert top_eye < 550 < bottom_eye     # top copy above the midline, bottom below
