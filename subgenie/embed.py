@@ -105,6 +105,39 @@ def subtitle_stream_count(movie_path: str) -> int:
     return len([line for line in output.splitlines() if line.strip()])
 
 
+def subtitle_track_languages(movie_path: str) -> list[str]:
+    """Language tag (lowercased, '' if none) of each existing subtitle stream, in order.
+
+    Used to find which existing track matches the user's preferred language so it
+    can be marked the default (auto-selected) track. Empty list if ffprobe absent.
+    """
+    probe = ffprobe_path()
+    if not probe:
+        return []
+    cmd = [
+        probe, "-v", "error",
+        "-select_streams", "s",
+        "-show_entries", "stream=index:stream_tags=language",
+        "-of", "csv=p=0",
+        movie_path,
+    ]
+    try:
+        output = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=60, check=False
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    langs: list[str] = []
+    for line in output.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        # "index,lang" or "index," when the stream has no language tag.
+        parts = line.split(",", 1)
+        langs.append(parts[1].strip().lower() if len(parts) > 1 else "")
+    return langs
+
+
 def _added_subtitle_codec(output_ext: str) -> str:
     """Codec for the subtitle streams we add (existing ones are always copied).
 
@@ -117,11 +150,36 @@ def _added_subtitle_codec(output_ext: str) -> str:
     return "copy"
 
 
+def _preferred_subtitle_index(
+    movie_path: str,
+    tracks: list[SubtitleTrack],
+    offset: int,
+    default_alpha3: Optional[str],
+) -> Optional[int]:
+    """Subtitle-stream index that should be the default, or None.
+
+    Prefers a track we're adding in the wanted language; otherwise an existing
+    track already in that language (e.g. the movie's own English). None when no
+    preference is given or nothing matches, leaving dispositions as-is.
+    """
+    if not default_alpha3:
+        return None
+    for i, track in enumerate(tracks):
+        if track.language.alpha3 == default_alpha3:
+            return offset + i
+    for i, lang in enumerate(subtitle_track_languages(movie_path)):
+        if lang == default_alpha3:
+            return i
+    return None
+
+
 def embed_subtitles(
     movie_path: str,
     tracks: list[SubtitleTrack],
     *,
     keep_original: bool = False,
+    tag: str = "SG",
+    default_alpha3: Optional[str] = None,
 ) -> str:
     """Mux ``tracks`` into ``movie_path`` in place. Returns the final path.
 
@@ -162,19 +220,37 @@ def embed_subtitles(
     # we add, addressed at offset+i so they don't clobber the movie's own subs.
     cmd += ["-c", "copy"]
 
+    # Decide which subtitle stream should be the default (auto-selected) track:
+    # the user's preferred language, whether it's one we're adding or one the
+    # movie already has. Falls back to leaving dispositions untouched.
+    pref_index = _preferred_subtitle_index(movie_path, tracks, offset, default_alpha3)
+
     for i, track in enumerate(tracks):
         s = offset + i
         if added_codec != "copy":
             cmd += [f"-c:s:{s}", added_codec]
         cmd += [f"-metadata:s:s:{s}", f"language={track.language.alpha3}"]
-        title = track.language.name
+        title = f"{track.language.name} [{tag}]" if tag else track.language.name
         if track.forced:
             title += " (Forced)"
         elif track.hearing_impaired:
             title += " (SDH)"
         cmd += [f"-metadata:s:s:{s}", f"title={title}"]
+
+    if pref_index is not None:
+        # Clear default on the movie's own subtitle streams so ours can win.
+        for i in range(offset):
+            cmd += [f"-disposition:s:{i}", "+default" if i == pref_index else "-default"]
+
+    # Absolute disposition for the streams we add (forced / default / none).
+    for i, track in enumerate(tracks):
+        s = offset + i
+        flags = []
         if track.forced:
-            cmd += [f"-disposition:s:{s}", "forced"]
+            flags.append("forced")
+        if s == pref_index:
+            flags.append("default")
+        cmd += [f"-disposition:s:{s}", "+".join(flags) if flags else "0"]
 
     cmd.append(temp_out)
 

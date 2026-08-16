@@ -160,6 +160,13 @@ def resolve_languages(cfg: Config, args) -> list[Language]:
     return default
 
 
+def _preferred_default_language(cfg: Config):
+    """The user's primary language (first configured default), for the auto-
+    selected embedded track — used even when 'all' languages are chosen."""
+    langs, _ = resolve_many(cfg.defaults.languages)
+    return langs[0] if langs else None
+
+
 def resolve_action(cfg: Config, args) -> str:
     if args.action:
         return args.action
@@ -655,6 +662,8 @@ def run_jobs(cfg: Config, args) -> int:
             three_d_keep_flat=args.keep_flat or cfg.defaults.three_d_keep_flat,
             sync=args.sync,
             sync_offset=args.sync_offset or 0.0,
+            embed_tag=cfg.defaults.embed_tag,
+            default_language=_preferred_default_language(cfg),
         )
         if treat_as_3d and action == ACTION_EMBED and info.extension in (".mp4", ".m4v", ".mov"):
             print(ui.yellow("  Note: MP4 can't carry positioned 3D subtitles; "

@@ -38,6 +38,9 @@ class RunOptions:
     # Timing sync.
     sync: bool = False                    # auto-align to the movie's audio (ffsubsync)
     sync_offset: float = 0.0              # fixed shift in seconds (may be negative)
+    # Embed labelling / default track.
+    embed_tag: str = "SG"                 # marker on embedded track titles ("" = none)
+    default_language: Optional[Language] = None  # preferred auto-selected track
 
 
 @dataclass
@@ -193,6 +196,12 @@ def process_movie(
         except ProviderError as exc:
             result.outcomes.append(LanguageOutcome(lang, "error", str(exc)))
             continue
+        # Skip empty/broken text subtitles so we don't create dead tracks.
+        if _is_convertible_text_sub(cand.subtitle_ext) and not _has_cues(data):
+            result.outcomes.append(
+                LanguageOutcome(lang, "notfound", "downloaded subtitle was empty")
+            )
+            continue
         downloaded.append((lang, data, cand))
 
     if (options.sync or options.sync_offset) and downloaded:
@@ -238,6 +247,15 @@ def _effective_3d_format(options: RunOptions, info: MovieInfo):
 
 def _is_convertible_text_sub(ext: str) -> bool:
     return ext.lower() in (".srt", ".vtt")
+
+
+import re as _re
+_CUE_RE = _re.compile(rb"\d\d:\d\d:\d\d[,.]\d\d\d\s*-->")
+
+
+def _has_cues(data: bytes) -> bool:
+    """True if the text subtitle has at least one timed cue (not empty/broken)."""
+    return bool(_CUE_RE.search(data))
 
 
 def _place_sidecars(
@@ -364,7 +382,13 @@ def _place_embedded(
                 forced=cand.forced, hearing_impaired=cand.hearing_impaired,
             ))
         try:
-            out = embed_subtitles(info.path, tracks, keep_original=options.keep_original_on_embed)
+            out = embed_subtitles(
+                info.path, tracks,
+                keep_original=options.keep_original_on_embed,
+                tag=options.embed_tag,
+                default_alpha3=(options.default_language.alpha3
+                                if options.default_language else None),
+            )
             result.embedded_path = out
             for lang, _, cand in downloaded:
                 result.outcomes.append(

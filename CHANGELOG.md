@@ -16,8 +16,21 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   black bar). SubtitleGenie now detects the active picture area with ffmpeg
   cropdetect and sits the subtitles just above the bottom of the *visible image*,
   in each eye. Without ffmpeg it falls back to near the bottom of the frame.
+- **Empty/broken subtitles are skipped instead of embedded as dead tracks.** A
+  download with no timed cues no longer becomes a subtitle track that shows
+  nothing; it's reported as "empty" and left out.
 
 ### Added
+- **Embedded tracks are tagged so you can tell them apart.** Subtitles
+  SubtitleGenie muxes in are now titled e.g. `English [SG]`, so in your player's
+  track list they're obviously yours versus the movie's own (`English [PGS]`,
+  etc.). Change or clear the marker with `config --set defaults.embed_tag SG`
+  (empty = no tag).
+- **Your default language is the auto-selected track — even with `all`.** When
+  embedding, the track for your primary language (first in `defaults.languages`)
+  is marked the MKV *default* and the movie's own default is cleared, so playback
+  starts on your language instead of whatever the release shipped as default. If
+  that language is already in the movie, that existing track is marked default.
 - **Subtitle timing sync.** `--sync` auto-aligns each subtitle to the movie's
   audio using [ffsubsync](https://github.com/smacke/ffsubsync) (fixes offset and
   framerate drift; install with `pip install ffsubsync`). `--sync-offset SECONDS`

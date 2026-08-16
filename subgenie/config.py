@@ -75,6 +75,7 @@ class Defaults:
     three_d_format: str = "auto"           # auto | hsbs | sbs | hou | ou
     three_d_disparity: int = 0             # per-eye horizontal shift (depth); 0 = screen plane
     three_d_keep_flat: bool = False        # also write the plain 2D .srt alongside the 3D .ass
+    embed_tag: str = "SG"                   # marker on embedded track titles ("" = none)
 
 
 @dataclass
@@ -160,6 +161,7 @@ class Config:
             three_d_format=defaults.get("three_d_format", base.three_d_format),
             three_d_disparity=int(defaults.get("three_d_disparity", base.three_d_disparity)),
             three_d_keep_flat=bool(defaults.get("three_d_keep_flat", base.three_d_keep_flat)),
+            embed_tag=defaults.get("embed_tag", base.embed_tag),
         )
 
         prompts = data.get("prompts", {}) or {}
