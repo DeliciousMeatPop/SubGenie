@@ -9,6 +9,13 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **Each release's notes now list only that release's changes.** The workflow
+  auto-promotes `## [Unreleased]` into a dated `## [X.Y.Z]` section at release
+  time and commits it back, so `[Unreleased]` is cleared every release instead
+  of accumulating — no more every release repeating everything since the first
+  one. You just keep adding notes under `[Unreleased]`; no manual moving needed.
+
 ### Added
 - **ffmpeg help & opt-in install.** When embedding is requested but ffmpeg isn't
   found, SubtitleGenie now prints the official download link

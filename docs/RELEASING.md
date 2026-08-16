@@ -5,16 +5,15 @@ apps for every OS and opens a **draft** release for you to review and publish.
 
 ## TL;DR
 
-1. Move your new entries in `CHANGELOG.md` from `## [Unreleased]` into a new
-   `## [X.Y.Z] - YYYY-MM-DD` section.
-2. Bump `version` in `pyproject.toml` and `subgenie/__init__.py` to `X.Y.Z`.
-3. Commit that.
-4. Tag and push:
+1. Just keep adding your notes under `## [Unreleased]` in `CHANGELOG.md` as you
+   work — you do **not** need to move them into a version section by hand. The
+   release does that for you (see "Changelog auto-promotion" below).
+2. Tag and push:
    ```bash
    git tag vX.Y.Z
    git push origin vX.Y.Z
    ```
-5. Watch the **Actions** tab. When it finishes, go to **Releases**, open the
+3. Watch the **Actions** tab. When it finishes, go to **Releases**, open the
    new **draft**, give the notes a final read, and click **Publish**.
 
 > Prefer buttons? In the **Actions** tab pick **Build & draft release** →
@@ -52,22 +51,36 @@ git tag -f v0.2.0 && git push -f origin v0.2.0
 
 Until you delete it, re-runs are no-ops — safe by design.
 
+## Changelog auto-promotion (so each release lists only its own changes)
+
+You maintain `CHANGELOG.md` by adding entries under `## [Unreleased]` and never
+touching version headings. At release time the workflow runs
+`scripts/promote_changelog.py <version>`, which:
+
+1. moves the whole `## [Unreleased]` body into a new `## [X.Y.Z] - <date>`
+   section,
+2. resets `## [Unreleased]` to empty, and
+3. fixes the reference links at the bottom,
+
+then **commits that back to `main`**. Because `[Unreleased]` is emptied every
+release, the next release only contains what changed *since* this one — no more
+"every release repeats everything since 0.0.1." It's idempotent, so re-runs are
+safe.
+
+If the commit-back can't be pushed (e.g. `main` is a protected branch), the
+release is still created with correct notes — you'll just see a warning that
+`[Unreleased]` wasn't cleared, and you can promote it manually.
+
 ## How the release notes are built
 
 `scripts/build_release_notes.py` assembles the body:
 
 - **The changelog sits near the top of every release.** The script reads
   `CHANGELOG.md` and drops the relevant section wherever the template has
-  `{{CHANGELOG}}`, so the "what changed" list is always current and lives high
-  up — you never hand-copy it. It looks for the section in this order:
-  1. an explicit `## [X.Y.Z]` heading for the version being released, else
-  2. the `## [Unreleased]` section — so notes you keep under *Unreleased* still
-     show up **without** having to move them under a version heading at tag time,
-  3. and only if both are empty does a "fill me in" placeholder appear.
-
-  Moving Unreleased → `## [X.Y.Z] - <date>` before tagging is still the tidy
-  habit (it keeps the file's history straight), but it's no longer required for
-  the notes to be correct.
+  `{{CHANGELOG}}`. Because promotion (above) runs first, it finds an explicit
+  `## [X.Y.Z]` section for the version — containing only this release's changes.
+  If for some reason that section is missing it falls back to `## [Unreleased]`,
+  and only if both are empty does a "fill me in" placeholder appear.
 - **Default template:** `.github/RELEASE_TEMPLATE.md`. This is the layout used
   for every release. Edit it to change the standard structure (downloads table,
   links, footer, etc.). Placeholders it can use: `{{VERSION}}`, `{{TAG}}`,
