@@ -9,6 +9,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+_Nothing yet — new entries go here and are moved under a version heading automatically at release time._
+
+## [0.0.5] - 2026-08-16
+
 ### Fixed
 - **Each release's notes now list only that release's changes.** The workflow
   auto-promotes `## [Unreleased]` into a dated `## [X.Y.Z]` section at release
@@ -98,5 +102,6 @@ First public build. 🎉
 - Cross-platform drag-drop launchers for Windows, macOS, and Linux.
 - `setup`, `config`, and `languages` subcommands.
 
-[Unreleased]: https://github.com/DeliciousMeatPop/SubGenie/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/DeliciousMeatPop/SubGenie/compare/v0.0.5...HEAD
+[0.0.5]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.0.5
 [0.1.0]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.1.0
