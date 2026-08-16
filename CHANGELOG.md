@@ -32,6 +32,17 @@ _Nothing yet — new entries go here and are moved under a version heading autom
   download with no timed cues no longer becomes a subtitle track that shows
   nothing; it's reported as "empty" and left out.
 
+### Fixed
+- **Non-English subtitles are no longer garbled/blank.** Downloaded subtitles are
+  often in a legacy encoding (Windows-1256 Arabic, 1251 Cyrillic, GBK/Big5
+  Chinese, …); decoding them all as UTF-8 destroyed the text when rewriting it
+  into a 3D `.ass`, so English worked but most other languages didn't.
+  SubtitleGenie now decodes each subtitle using its known language (UTF-8 first,
+  then that language's real code pages), so the text comes through correctly.
+- Embedding more than a handful of subtitle tracks now prints a note that
+  sidecar mode is more reliable for large sets (some players mishandle many
+  embedded ASS tracks when switching between them).
+
 ### Added
 - **Embedded tracks are tagged so you can tell them apart.** Subtitles
   SubtitleGenie muxes in are now titled e.g. `English [SG]`, so in your player's

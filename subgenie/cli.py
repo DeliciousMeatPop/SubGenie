@@ -641,6 +641,11 @@ def run_jobs(cfg: Config, args) -> int:
             print(ui.yellow("ffmpeg not found – subtitles will be saved as sidecar files instead."))
             action = ACTION_SIDECAR
 
+    if action == ACTION_EMBED and len(languages) > 8:
+        print(ui.dim(f"  Note: embedding {len(languages)} subtitle tracks. Some players "
+                     "handle many embedded tracks poorly — sidecar mode is more reliable "
+                     "for large sets."))
+
     if args.sync:
         from . import sync as sync_mod
         if not sync_mod.autosync_available():
