@@ -9,10 +9,6 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-_Nothing yet — new entries go here and are moved under a version heading automatically at release time._
-
-## [0.0.7] - 2026-08-16
-
 ### Fixed
 - **3D subtitles no longer float in the middle of the picture.** On letterboxed
   (cinemascope) 3D releases the per-eye subtitles were placed by frame percentage,
@@ -35,6 +31,9 @@ _Nothing yet — new entries go here and are moved under a version heading autom
   is marked the MKV *default* and the movie's own default is cleared, so playback
   starts on your language instead of whatever the release shipped as default. If
   that language is already in the movie, that existing track is marked default.
+
+## [0.0.7] - 2026-08-16
+
 - **Subtitle timing sync.** `--sync` auto-aligns each subtitle to the movie's
   audio using [ffsubsync](https://github.com/smacke/ffsubsync) (fixes offset and
   framerate drift; install with `pip install ffsubsync`). `--sync-offset SECONDS`
