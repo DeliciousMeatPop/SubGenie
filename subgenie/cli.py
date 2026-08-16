@@ -616,8 +616,8 @@ def _run_sync_existing(cfg: Config, args) -> int:
     """Re-time the subtitle files already sitting next to the movie(s).
 
     No downloading, no picker, no embedding — the workflow is: you already have
-    subtitles, they're out of sync, so `--sync` (auto, via ffsubsync) or
-    `--sync-offset SECONDS` (fixed shift, no tools) fixes them in place.
+    subtitles, they're out of sync, so `--sync` (auto-align to the audio) or
+    `--sync-offset SECONDS` (fixed shift) fixes them in place.
     """
     from . import sync as sync_mod
     from .mediainfo import sidecar_subtitle_files
@@ -630,13 +630,15 @@ def _run_sync_existing(cfg: Config, args) -> int:
 
     auto = bool(args.sync)
     if auto and not sync_mod.autosync_available():
-        print(ui.yellow("--sync auto-align needs 'ffsubsync', which isn't installed."))
-        print(ui.dim(sync_mod.install_hint()))
-        if not args.sync_offset:
-            print(ui.dim("Nothing to do. Use --sync-offset SECONDS for a fixed shift "
-                         "(no tools needed), or install ffsubsync for auto-align."))
-            return 1
-        auto = False  # fall back to the offset-only shift
+        # Auto-align uses ffmpeg (built in). Offer to fetch it.
+        if not _offer_ffmpeg_install():
+            print(ui.yellow("Auto-align needs ffmpeg, which isn't installed."))
+            print(ui.dim(sync_mod.install_hint()))
+            if not args.sync_offset:
+                print(ui.dim("Nothing to do without ffmpeg. Use --sync-offset SECONDS "
+                             "for a fixed shift (no tools needed)."))
+                return 1
+            auto = False  # fall back to the offset-only shift
 
     # Text formats we can shift by a fixed offset (SRT-style timestamps).
     shiftable = (".srt", ".vtt")
@@ -656,7 +658,8 @@ def _run_sync_existing(cfg: Config, args) -> int:
                     print(ui.dim(f"  aligning {name}…"))
                     with open(sub, "rb") as handle:
                         text = decode_subtitle(handle.read())
-                    synced = sync_mod.autosync(movie_path, text)
+                    synced = sync_mod.autosync(
+                        movie_path, text, log=lambda m: print(ui.dim(m), flush=True))
                     if synced is None:
                         print(ui.yellow(f"  - {name}: auto-align failed"))
                         exit_code = 2
