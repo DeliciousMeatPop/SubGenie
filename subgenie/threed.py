@@ -140,20 +140,110 @@ def video_resolution(path: str) -> tuple[int, int]:
     return DEFAULT_WIDTH, DEFAULT_HEIGHT
 
 
-def _positions(layout: Layout, width: int, height: int, disparity: int):
-    """Return ((x1,y1),(x2,y2), scale_override) for the two eye copies."""
+def active_vertical_band(path: str, height: int) -> Optional[tuple[int, int]]:
+    """Detect the active picture's (top, bottom) in frame pixels via cropdetect.
+
+    Samples a handful of timestamps (skipping dark scenes by taking the largest
+    detected picture) so letterbox bars don't fool it. Returns None when ffmpeg
+    isn't available or nothing sensible is found, in which case the caller uses
+    the whole frame.
+    """
+    from . import ffmpeg as ffmpeg_tools
+
+    ffmpeg = ffmpeg_tools.ffmpeg_path()
+    if not ffmpeg:
+        return None
+
+    duration = _duration(path)
+    if duration and duration > 0:
+        times = [duration * f for f in (0.2, 0.35, 0.5, 0.65, 0.8)]
+    else:
+        times = [30, 90, 300, 600, 1200]
+
+    best: Optional[tuple[int, int]] = None  # (h, y)
+    crop_re = re.compile(r"crop=(\d+):(\d+):(\d+):(\d+)")
+    for t in times:
+        cmd = [
+            ffmpeg, "-hide_banner", "-ss", str(int(t)), "-i", path,
+            "-frames:v", "20", "-vf", "cropdetect=24:2:0", "-f", "null", "-",
+        ]
+        try:
+            err = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=90, check=False
+            ).stderr
+        except (OSError, subprocess.SubprocessError):
+            continue
+        matches = crop_re.findall(err)
+        if not matches:
+            continue
+        _w, h, _x, y = (int(v) for v in matches[-1])
+        if best is None or h > best[0]:
+            best = (h, y)
+
+    if best is None:
+        return None
+    h, y = best
+    top = max(0, y)
+    bottom = min(height, y + h)
+    # Ignore implausible detections (e.g. an almost-black sample).
+    if bottom - top < height * 0.3:
+        return None
+    return (top, bottom)
+
+
+def _duration(path: str) -> Optional[float]:
+    from . import ffmpeg as ffmpeg_tools
+
+    ffprobe = ffmpeg_tools.ffprobe_path()
+    if not ffprobe:
+        return None
+    cmd = [
+        ffprobe, "-v", "error", "-show_entries", "format=duration",
+        "-of", "default=nw=1:nk=1", path,
+    ]
+    try:
+        out = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=30, check=False
+        ).stdout.strip()
+        return float(out)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+
+
+def _positions(
+    layout: Layout,
+    width: int,
+    height: int,
+    disparity: int,
+    band: Optional[tuple[int, int]] = None,
+):
+    """Return ((x1,y1),(x2,y2), scale_override) for the two eye copies.
+
+    ``band`` is the active picture's vertical extent (top, bottom) in frame
+    coordinates, from cropdetect. Subtitles are placed just above the bottom of
+    the *picture* rather than the bottom of the frame, so on letterboxed
+    (cinemascope) 3D content they sit inside the image instead of floating in a
+    black bar or - if the frame is much taller than the picture - drifting up
+    toward the middle. Without a band we use the whole frame.
+    """
+    top, bottom = band if band else (0, height)
+    band_h = max(1, bottom - top)
+    margin = max(20, int(band_h * 0.06))   # sit ~6% above the picture's bottom
+
     if layout.orientation == "sbs":
-        y = int(height * 0.90)
+        y = bottom - margin
         left = (int(width * 0.25) + disparity, y)
         right = (int(width * 0.75) - disparity, y)
         scale = r"\fscx50" if layout.squeeze else ""
         return left, right, scale
-    # over-under
+
+    # over-under: two pictures stacked; place each just above its own bottom.
     x = int(width * 0.5)
-    top = (x, int(height * 0.46))
-    bottom = (x, int(height * 0.96))
+    mid = (top + bottom) // 2
+    top_eye = (x, mid - margin)
+    bottom_eye = (x, bottom - margin)
     scale = r"\fscy50" if layout.squeeze else ""
-    return top, bottom, scale
+    return top_eye, bottom_eye, scale
 
 
 def _ass_header(width: int, height: int, font_size: int) -> str:
@@ -188,10 +278,15 @@ def convert_to_3d_ass(
     height: int = DEFAULT_HEIGHT,
     disparity: int = 0,
     font_size: Optional[int] = None,
+    band: Optional[tuple[int, int]] = None,
 ) -> str:
-    """Convert SRT text into a per-eye 3D ``.ass`` document (as a string)."""
+    """Convert SRT text into a per-eye 3D ``.ass`` document (as a string).
+
+    ``band`` is the active picture's (top, bottom) in frame pixels, so subtitles
+    land at the bottom of the visible image on letterboxed content.
+    """
     layout = resolve_layout(three_d_format, width, height)
-    (x1, y1), (x2, y2), scale = _positions(layout, width, height, disparity)
+    (x1, y1), (x2, y2), scale = _positions(layout, width, height, disparity, band)
     if font_size is None:
         font_size = max(24, int(height * 0.05))
 

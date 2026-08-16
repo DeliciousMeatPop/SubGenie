@@ -65,6 +65,10 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Per-eye horizontal shift for subtitle depth (0 = screen plane).")
     parser.add_argument("--keep-flat", dest="keep_flat", action="store_true",
                         help="In 3D mode, also keep the plain 2D subtitle alongside the 3D one.")
+    parser.add_argument("--sync", action="store_true",
+                        help="Auto-align subtitles to the movie's audio (needs ffsubsync).")
+    parser.add_argument("--sync-offset", dest="sync_offset", type=float, metavar="SECONDS",
+                        help="Shift subtitle timing by a fixed number of seconds (may be negative).")
     parser.add_argument("--overwrite", action="store_true",
                         help="Replace subtitles that already exist.")
     parser.add_argument("--keep-original", action="store_true",
@@ -627,6 +631,12 @@ def run_jobs(cfg: Config, args) -> int:
             print(ui.yellow("ffmpeg not found – subtitles will be saved as sidecar files instead."))
             action = ACTION_SIDECAR
 
+    if args.sync:
+        from . import sync as sync_mod
+        if not sync_mod.autosync_available():
+            print(ui.yellow("--sync needs ffsubsync, which isn't installed."))
+            print(ui.dim(sync_mod.install_hint()))
+
     exit_code = 0
     for movie_path in movies:
         info = parse(movie_path)
@@ -643,6 +653,8 @@ def run_jobs(cfg: Config, args) -> int:
             three_d_disparity=(args.three_d_depth if args.three_d_depth is not None
                                else cfg.defaults.three_d_disparity),
             three_d_keep_flat=args.keep_flat or cfg.defaults.three_d_keep_flat,
+            sync=args.sync,
+            sync_offset=args.sync_offset or 0.0,
         )
         if treat_as_3d and action == ACTION_EMBED and info.extension in (".mp4", ".m4v", ".mov"):
             print(ui.yellow("  Note: MP4 can't carry positioned 3D subtitles; "

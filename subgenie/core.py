@@ -35,6 +35,9 @@ class RunOptions:
     three_d_format: str = "auto"          # auto | hsbs | sbs | hou | ou
     three_d_disparity: int = 0            # per-eye horizontal shift (depth)
     three_d_keep_flat: bool = False       # also keep the plain 2D .srt sidecar
+    # Timing sync.
+    sync: bool = False                    # auto-align to the movie's audio (ffsubsync)
+    sync_offset: float = 0.0              # fixed shift in seconds (may be negative)
 
 
 @dataclass
@@ -192,12 +195,37 @@ def process_movie(
             continue
         downloaded.append((lang, data, cand))
 
+    if (options.sync or options.sync_offset) and downloaded:
+        downloaded = _apply_sync(info, options, downloaded, log)
+
     if options.action == ACTION_EMBED:
         _place_embedded(info, options, downloaded, result, log)
     else:
         _place_sidecars(info, options, downloaded, result)
 
     return result
+
+
+def _apply_sync(info, options, downloaded, log):
+    """Re-time downloaded text subtitles (auto-align and/or fixed offset)."""
+    from . import sync as sync_mod
+
+    out = []
+    for lang, data, cand in downloaded:
+        if not _is_convertible_text_sub(cand.subtitle_ext):
+            out.append((lang, data, cand))
+            continue
+        text = data.decode("utf-8", errors="replace")
+        if options.sync:
+            aligned = sync_mod.autosync(info.path, text)
+            if aligned is not None:
+                text = aligned
+            else:
+                log(f"  [sync] couldn't auto-sync {lang.name}; left unchanged")
+        if options.sync_offset:
+            text = sync_mod.shift_srt(text, options.sync_offset)
+        out.append((lang, text.encode("utf-8"), cand))
+    return out
 
 
 def _effective_3d_format(options: RunOptions, info: MovieInfo):
@@ -219,10 +247,11 @@ def _place_sidecars(
     result: MovieResult,
 ) -> None:
     three_d = options.treat_as_3d
-    width = height = None
+    width = height = band = None
     if three_d:
-        from .threed import video_resolution
+        from .threed import active_vertical_band, video_resolution
         width, height = video_resolution(info.path)
+        band = active_vertical_band(info.path, height)
 
     for lang, data, cand in downloaded:
         # 3D path: rewrite text subtitles into a per-eye .ass so they display
@@ -230,7 +259,7 @@ def _place_sidecars(
         if three_d and _is_convertible_text_sub(cand.subtitle_ext):
             try:
                 _write_3d_sidecar(info, options, lang, data, cand, result,
-                                  width, height)
+                                  width, height, band)
             except OSError as exc:
                 result.outcomes.append(LanguageOutcome(lang, "error", f"write failed: {exc}"))
             continue
@@ -253,13 +282,14 @@ def _place_sidecars(
         )
 
 
-def _write_3d_sidecar(info, options, lang, data, cand, result, width, height) -> None:
+def _write_3d_sidecar(info, options, lang, data, cand, result, width, height, band=None) -> None:
     from .threed import convert_to_3d_ass
 
     fmt = _effective_3d_format(options, info)
     srt_text = data.decode("utf-8", errors="replace")
     ass_text = convert_to_3d_ass(
-        srt_text, fmt, width=width, height=height, disparity=options.three_d_disparity
+        srt_text, fmt, width=width, height=height,
+        disparity=options.three_d_disparity, band=band,
     )
     ass_path = sidecar_path(
         info, lang,
@@ -301,10 +331,11 @@ def _place_embedded(
     import tempfile
 
     three_d = options.treat_as_3d
-    width = height = None
+    width = height = band = None
     if three_d:
-        from .threed import video_resolution
+        from .threed import active_vertical_band, video_resolution
         width, height = video_resolution(info.path)
+        band = active_vertical_band(info.path, height)
 
     tracks: list[SubtitleTrack] = []
     temp_files: list[str] = []
@@ -316,7 +347,8 @@ def _place_embedded(
                 ass_text = convert_to_3d_ass(
                     data.decode("utf-8", errors="replace"),
                     _effective_3d_format(options, info),
-                    width=width, height=height, disparity=options.three_d_disparity,
+                    width=width, height=height,
+                    disparity=options.three_d_disparity, band=band,
                 )
                 fd, temp_path = tempfile.mkstemp(suffix=".ass", prefix="subgenie_sub_")
                 temp_files.append(temp_path)

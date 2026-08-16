@@ -126,10 +126,24 @@ subtitlegenie movie.mkv --langs all           # every language it knows
 subtitlegenie movie.mkv --action embed        # mux into the file this time
 subtitlegenie movie.mkv --3d                  # force 3D handling
 subtitlegenie movie.mkv --2d                  # force plain 2D
+subtitlegenie movie.mkv --sync                # auto-align timing to the audio
+subtitlegenie movie.mkv --sync-offset -2.5    # or shift timing by a fixed amount
 subtitlegenie movie.mkv --overwrite           # replace existing subtitles
 subtitlegenie movie.mkv -y                    # don't ask anything, use defaults
 subtitlegenie movie.mkv --ask                 # ask about everything this run
 ```
+
+### Fixing out-of-sync subtitles
+
+Hash-matched OpenSubtitles results are already synced, but a fallback subtitle
+can be off. Two options:
+
+- `--sync` **auto-aligns** each subtitle to the movie's audio (fixes both a
+  constant offset and framerate drift). It uses
+  [ffsubsync](https://github.com/smacke/ffsubsync); install it once with
+  `pip install ffsubsync`.
+- `--sync-offset SECONDS` applies a **fixed shift** (e.g. `-2.5` to move subs
+  2.5s earlier) — no extra tools needed.
 
 ---
 
@@ -196,6 +210,11 @@ In **3D mode** SubtitleGenie rewrites the subtitle into a per-eye `.ass` file:
   50% width to look right after the display stretches it back.
 - **Over-Under (OU/HOU):** copies stacked in the top and bottom halves, with
   50% height for Half-OU.
+
+On letterboxed (cinemascope) releases SubtitleGenie detects the active picture
+area with ffmpeg (cropdetect) and places the subtitles just above the bottom of
+the **visible image**, so they don't float in the middle or sit down in a black
+bar. Without ffmpeg it falls back to near the bottom of the frame.
 
 The layout is auto-detected from the filename (`HSBS`, `Half-OU`, …); override
 with `--3d-format`. Depth defaults to the screen plane — nudge it with
