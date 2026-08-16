@@ -9,6 +9,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+_Nothing yet — new entries go here and are moved under a version heading automatically at release time._
+
+## [0.0.7] - 2026-08-16
+
 ### Fixed
 - **3D subtitles no longer float in the middle of the picture.** On letterboxed
   (cinemascope) 3D releases the per-eye subtitles were placed by frame percentage,
@@ -124,7 +128,8 @@ First public build. 🎉
 - Cross-platform drag-drop launchers for Windows, macOS, and Linux.
 - `setup`, `config`, and `languages` subcommands.
 
-[Unreleased]: https://github.com/DeliciousMeatPop/SubGenie/compare/v0.0.6...HEAD
+[Unreleased]: https://github.com/DeliciousMeatPop/SubGenie/compare/v0.0.7...HEAD
+[0.0.7]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.0.7
 [0.0.6]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.0.6
 [0.0.5]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.0.5
 [0.1.0]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.1.0
