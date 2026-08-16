@@ -85,8 +85,8 @@ def test_exact_version_wins_over_unreleased(monkeypatch, tmp_path):
     assert "Unreleased line" not in body
 
 
-def test_render_v010_uses_special_file_and_injects_changelog():
-    out = brn.render("v0.1.0")
+def test_render_first_release_uses_special_file_and_injects_changelog():
+    out = brn.render("v0.0.1")
     assert "the first one" in out.lower()          # from the special file
     assert "First public build" in out             # injected changelog
     assert "{{" not in out                          # all placeholders resolved

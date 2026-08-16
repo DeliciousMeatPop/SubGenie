@@ -40,11 +40,6 @@ _Nothing yet — new entries go here and are moved under a version heading autom
 ## [0.0.5] - 2026-08-16
 
 ### Fixed
-- **Each release's notes now list only that release's changes.** The workflow
-  auto-promotes `## [Unreleased]` into a dated `## [X.Y.Z]` section at release
-  time and commits it back, so `[Unreleased]` is cleared every release instead
-  of accumulating — no more every release repeating everything since the first
-  one. You just keep adding notes under `[Unreleased]`; no manual moving needed.
 - **Embedding into a movie that already has subtitle tracks no longer fails.**
   BluRay rips usually carry bitmap (PGS) subtitle tracks; the old mux forced
   every subtitle stream to a text codec, so ffmpeg tried to transcode those
@@ -53,6 +48,13 @@ _Nothing yet — new entries go here and are moved under a version heading autom
   copied untouched, and the codec/language/forced metadata are applied only to
   the subtitle streams we add — at the correct offset, so their language tags no
   longer land on the movie's own tracks.
+- **Each release's notes now list only that release's changes.** The workflow
+  auto-promotes `## [Unreleased]` into a dated `## [X.Y.Z]` section at release
+  time and commits it back, so `[Unreleased]` is cleared every release instead
+  of accumulating. You just keep adding notes under `[Unreleased]`; no manual
+  moving needed.
+
+## [0.0.4] - 2026-08-15
 
 ### Added
 - **ffmpeg help & opt-in install.** When embedding is requested but ffmpeg isn't
@@ -65,6 +67,13 @@ _Nothing yet — new entries go here and are moved under a version heading autom
   `brew install ffmpeg`. We don't bundle ffmpeg in releases (GPL + codec-patent
   reasons); the on-demand download keeps that clean.
 
+### Fixed
+- Removed the leftover "this is a draft" footer from generated release notes, so
+  it no longer has to be deleted by hand on every release.
+
+## [0.0.3] - 2026-08-15
+
+### Added
 - **Self-update that installs itself.** On a normal run (or via
   `subtitlegenie update`) SubtitleGenie checks GitHub for a newer release
   (interactive, throttled to once a day). If you accept, it downloads the archive
@@ -77,9 +86,19 @@ _Nothing yet — new entries go here and are moved under a version heading autom
   `config --set updates.check_on_run false`.
 - Release archives now contain a clearly named binary,
   `SubtitleGenie_<os>_v<version>` (`win`/`mac`/`linux`, e.g.
-  `SubtitleGenie_win_v0.2.0.exe`), and the build stamps that version into the
+  `SubtitleGenie_win_v0.0.3.exe`), and the build stamps that version into the
   binary so `--version` and the update check report the release it was built
   from.
+
+### Fixed
+- The Windows release build failed at the version-stamp step: an inline
+  `python -c "…"` ran under PowerShell, which parsed the regex `[^"]` as an array
+  index. Version stamping now lives in `scripts/stamp_version.py`, so it works on
+  every runner.
+
+## [0.0.2] - 2026-08-15
+
+### Added
 - **Real 3D subtitles.** In 3D mode SubtitleGenie now rewrites the downloaded
   subtitle into a per-eye `.ass` file: for Side-by-Side it draws one copy in the
   left half and one in the right (each horizontally squeezed for Half-SBS), and
@@ -104,7 +123,7 @@ _Nothing yet — new entries go here and are moved under a version heading autom
   existing release and skips, preserving any manual edits. Delete the release to
   regenerate it.
 
-## [0.1.0] - 2026-08-15
+## [0.0.1] - 2026-08-15
 
 First public build. 🎉
 
@@ -132,4 +151,7 @@ First public build. 🎉
 [0.0.7]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.0.7
 [0.0.6]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.0.6
 [0.0.5]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.0.5
-[0.1.0]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.1.0
+[0.0.4]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.0.4
+[0.0.3]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.0.3
+[0.0.2]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.0.2
+[0.0.1]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.0.1
