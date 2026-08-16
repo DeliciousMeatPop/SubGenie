@@ -90,8 +90,9 @@ class Prompts:
 
 @dataclass
 class Updates:
-    check_on_run: bool = True    # look for a newer release when SubtitleGenie runs
-    last_check: float = 0.0      # epoch seconds of the last automatic check (throttle)
+    check_on_run: bool = True        # look for a newer release when SubtitleGenie runs
+    check_interval_hours: float = 0.0  # min hours between auto-checks; 0 = every run
+    last_check: float = 0.0          # epoch seconds of the last automatic check
 
 
 @dataclass
@@ -175,6 +176,9 @@ class Config:
         bu = Updates()
         cfg.updates = Updates(
             check_on_run=bool(updates.get("check_on_run", bu.check_on_run)),
+            check_interval_hours=float(
+                updates.get("check_interval_hours", bu.check_interval_hours)
+            ),
             last_check=float(updates.get("last_check", bu.last_check)),
         )
         return cfg

@@ -337,21 +337,36 @@ def cmd_update(cfg: Config) -> int:
     return 0
 
 
+def _update_check_due(cfg: Config, now: float) -> bool:
+    """Whether an automatic update check should run now (config-based gating).
+
+    Checks every run by default (``check_interval_hours`` = 0). A positive
+    interval throttles to at most one check per that many hours.
+    """
+    if not cfg.updates.check_on_run:
+        return False
+    interval = cfg.updates.check_interval_hours or 0
+    if interval <= 0:
+        return True
+    return (now - cfg.updates.last_check) >= interval * 3600
+
+
 def _maybe_check_for_update(cfg: Config, args) -> bool:
-    """Automatic, throttled update check at the start of a normal run.
+    """Automatic update check at the start of a normal run.
 
     Returns True if we installed and launched the new version (caller should stop
     and let the new process take over). Safe by design: only when interactive,
-    enabled, not suppressed, and at most once a day; any failure is swallowed so
-    it never disrupts the real job.
+    enabled and not suppressed; any failure is swallowed so it never disrupts the
+    real job. Runs every launch by default so a released update is seen right
+    away (a positive ``updates.check_interval_hours`` throttles it).
     """
-    if args.no_update_check or args.yes or not cfg.updates.check_on_run:
+    if args.no_update_check or args.yes:
         return False
     if not ui.is_interactive():
         return False
     import time
     now = time.time()
-    if now - cfg.updates.last_check < 86400:  # already checked within 24h
+    if not _update_check_due(cfg, now):
         return False
     cfg.updates.last_check = now
     try:
@@ -481,6 +496,8 @@ def _apply_dotted(cfg: Config, key: str, value: str) -> bool:
         elif parts[:1] == ["updates"] and len(parts) == 2:
             if parts[1] == "check_on_run":
                 cfg.updates.check_on_run = _as_bool(value)
+            elif parts[1] == "check_interval_hours":
+                cfg.updates.check_interval_hours = float(value)
             elif parts[1] == "last_check":
                 cfg.updates.last_check = float(value)
             else:

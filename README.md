@@ -258,9 +258,9 @@ subtitlegenie --version
 
 ### Staying up to date
 
-On a normal run SubtitleGenie quietly checks GitHub for a newer release (at most
-once a day). If there's one, it asks to update — and if you say yes it does the
-whole thing for you:
+On every run SubtitleGenie quietly checks GitHub for a newer release (the check
+is silent when you're up to date). If there's one, it asks to update — and if you
+say yes it does the whole thing for you:
 
 1. downloads the build for your OS,
 2. unzips the new executable **right next to your current one** (each version
@@ -271,10 +271,12 @@ whole thing for you:
    window; on macOS/Linux it takes over the same terminal.
 
 You can also update on demand with `subtitlegenie update`. Skip the check for one
-run with `--no-update-check`, or turn the automatic check off for good:
+run with `--no-update-check`, throttle it to at most every N hours, or turn the
+automatic check off entirely:
 
 ```bash
-subtitlegenie config --set updates.check_on_run false
+subtitlegenie config --set updates.check_interval_hours 24   # at most once a day
+subtitlegenie config --set updates.check_on_run false        # off entirely
 ```
 
 Old versions are left in place — delete them whenever you like.
