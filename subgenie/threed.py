@@ -140,13 +140,13 @@ def video_resolution(path: str) -> tuple[int, int]:
     return DEFAULT_WIDTH, DEFAULT_HEIGHT
 
 
-def active_vertical_band(path: str, height: int) -> Optional[tuple[int, int]]:
+def active_vertical_band(path: str, height: int, log=None) -> Optional[tuple[int, int]]:
     """Detect the active picture's (top, bottom) in frame pixels via cropdetect.
 
-    Samples a handful of timestamps (skipping dark scenes by taking the largest
-    detected picture) so letterbox bars don't fool it. Returns None when ffmpeg
-    isn't available or nothing sensible is found, in which case the caller uses
-    the whole frame.
+    Samples a few timestamps (skipping dark scenes by taking the largest detected
+    picture) so letterbox bars don't fool it. Returns None when ffmpeg isn't
+    available or nothing sensible is found, in which case the caller uses the
+    whole frame. ``log`` (optional) receives per-sample progress lines.
     """
     from . import ffmpeg as ffmpeg_tools
 
@@ -156,16 +156,19 @@ def active_vertical_band(path: str, height: int) -> Optional[tuple[int, int]]:
 
     duration = _duration(path)
     if duration and duration > 0:
-        times = [duration * f for f in (0.2, 0.35, 0.5, 0.65, 0.8)]
+        times = [duration * f for f in (0.3, 0.5, 0.7)]
     else:
-        times = [30, 90, 300, 600, 1200]
+        times = [60, 300, 900]
 
     best: Optional[tuple[int, int]] = None  # (h, y)
     crop_re = re.compile(r"crop=(\d+):(\d+):(\d+):(\d+)")
-    for t in times:
+    for i, t in enumerate(times, start=1):
+        if log:
+            log(f"  Analyzing video for 3D subtitle placement… ({i}/{len(times)})")
         cmd = [
-            ffmpeg, "-hide_banner", "-ss", str(int(t)), "-i", path,
-            "-frames:v", "20", "-vf", "cropdetect=24:2:0", "-f", "null", "-",
+            ffmpeg, "-hide_banner", "-nostats", "-an", "-sn",
+            "-ss", str(int(t)), "-i", path,
+            "-frames:v", "12", "-vf", "cropdetect=24:2:0", "-f", "null", "-",
         ]
         try:
             err = subprocess.run(

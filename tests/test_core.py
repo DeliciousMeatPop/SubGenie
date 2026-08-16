@@ -119,6 +119,25 @@ def test_process_movie_3d_keep_flat_writes_both(tmp_path):
     assert (tmp_path / "Film (2015) HSBS.en.srt").exists()
 
 
+def test_process_movie_emits_progress_logs(tmp_path):
+    movie = tmp_path / "The Film (2020).mkv"
+    movie.write_bytes(b"x" * (300 * 1024))
+    info = parse(str(movie))
+    en = languages.find("en")
+    es = languages.find("es")
+    srt = b"1\n00:00:01,000 --> 00:00:03,000\nhi\n"
+    provider = FakeProvider(
+        {"eng": [_make_candidate(en)], "spa": [_make_candidate(es)]},
+        payloads={"eng": srt, "spa": srt},
+    )
+    logs = []
+    process_movie(info, RunOptions(languages=[en, es]), [provider], log=logs.append)
+    joined = "\n".join(logs)
+    assert "Searching for subtitles in 2 language(s)" in joined
+    assert "Downloading 2 subtitle(s)" in joined
+    assert "1/2" in joined and "2/2" in joined
+
+
 def test_process_movie_reports_notfound(tmp_path):
     movie = tmp_path / "Obscure (1931).mkv"
     movie.write_bytes(b"x" * (300 * 1024))

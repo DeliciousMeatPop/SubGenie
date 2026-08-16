@@ -671,7 +671,8 @@ def run_jobs(cfg: Config, args) -> int:
         if treat_as_3d and action == ACTION_EMBED and info.extension in (".mp4", ".m4v", ".mov"):
             print(ui.yellow("  Note: MP4 can't carry positioned 3D subtitles; "
                             "embed into MKV or use sidecar mode for proper 3D."))
-        result = process_movie(info, options, providers, log=lambda m: print(ui.dim(m)))
+        result = process_movie(info, options, providers,
+                                log=lambda m: print(ui.dim(m), flush=True))
         _print_result(result)
         if result.error:
             exit_code = 2
