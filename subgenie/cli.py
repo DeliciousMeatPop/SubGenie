@@ -51,7 +51,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     # main run arguments (the default when the first arg is a path)
     parser.add_argument("paths", nargs="*", help="Movie file(s) or folder(s).")
-    parser.add_argument("-l", "--langs", help="Comma-separated languages (codes/names) or 'all'.")
+    parser.add_argument("-l", "--langs",
+                        help="Comma-separated languages (codes/names), 'common', or 'all'.")
     parser.add_argument("--action", choices=[ACTION_SIDECAR, ACTION_EMBED],
                         help="Save sidecar files or embed into the movie.")
     parser.add_argument("--3d", dest="three_d", action="store_true",
@@ -444,11 +445,13 @@ def cmd_install_ffmpeg(cfg: Config) -> int:
 
 
 def cmd_languages() -> int:
-    from .languages import all_languages
+    from .languages import all_languages, common_languages
     print(ui.bold("Supported languages") + ui.dim("  (sidecar code / 3-letter / name)"))
     for lang in all_languages():
         print(f"  {lang.sidecar_code:<4} {lang.alpha3:<5} {lang.name}")
-    print(ui.dim("\nUse any of these with --langs, or 'all' for everything."))
+    common = ", ".join(l.sidecar_code for l in common_languages())
+    print(ui.dim(f"\n'common' = {common}"))
+    print(ui.dim("Use any of these with --langs, or 'common' / 'all'."))
     return 0
 
 

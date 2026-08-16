@@ -90,9 +90,24 @@ for _lang in _LANGUAGES:
             _BY_ANY.setdefault(_key, _lang)
 
 
+# A handy "common" preset — the languages people usually actually want, instead
+# of dumping all 40-odd. Keeps both Spanish and Portuguese variants distinct.
+_COMMON_CODES = ["en", "es", "ea", "fr", "de", "it", "pt", "pb", "nl"]
+
+
 def all_languages() -> list[Language]:
     """Return the full language table (sorted by name)."""
     return sorted(_LANGUAGES, key=lambda l: l.name)
+
+
+def common_languages() -> list[Language]:
+    """Return the curated 'common' language set, in preset order."""
+    out: list[Language] = []
+    for code in _COMMON_CODES:
+        lang = find(code)
+        if lang is not None:
+            out.append(lang)
+    return out
 
 
 def find(token: str) -> Optional[Language]:
@@ -109,20 +124,28 @@ def find(token: str) -> Optional[Language]:
 def resolve_many(tokens: Iterable[str]) -> tuple[list[Language], list[str]]:
     """Resolve many tokens, returning (found languages, unknown tokens).
 
-    Order is preserved and duplicates removed. ``all`` expands to everything.
+    Order is preserved and duplicates removed. ``all`` expands to every
+    language; ``common`` expands to the curated common set.
     """
     found: list[Language] = []
     unknown: list[str] = []
     seen: set[str] = set()
+
+    def _extend(langs: list[Language]) -> None:
+        for lang in langs:
+            if lang.alpha3 not in seen:
+                seen.add(lang.alpha3)
+                found.append(lang)
+
     for raw in tokens:
         token = raw.strip()
         if not token:
             continue
         if token.lower() == "all":
-            for lang in all_languages():
-                if lang.alpha3 not in seen:
-                    seen.add(lang.alpha3)
-                    found.append(lang)
+            _extend(all_languages())
+            continue
+        if token.lower() == "common":
+            _extend(common_languages())
             continue
         lang = find(token)
         if lang is None:
