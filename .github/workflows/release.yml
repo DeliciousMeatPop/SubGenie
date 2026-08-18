@@ -129,15 +129,30 @@ jobs:
         continue-on-error: true
         run: pip install ffsubsync
 
+      # Build the onefile binary. If ffsubsync was installed (opt-in bundling),
+      # try to collect it; if that build fails for any reason, fall back to a
+      # clean built-in-sync-only build so a bundling problem can never fail the
+      # whole release — the built-in ffmpeg sync engine always ships.
       - name: Build standalone executable
         shell: bash
         run: |
-          EXTRA=""
+          build() {
+            pyinstaller --onefile --name subtitlegenie --clean --noconfirm "$@" run.py
+          }
+          EXTRA=()
           if python -c "import ffsubsync" 2>/dev/null; then
-            echo "ffsubsync present — bundling it."
-            EXTRA="--collect-all ffsubsync --collect-all srt"
+            echo "ffsubsync present — attempting to bundle it."
+            # webrtcvad's PyInstaller hook (pyinstaller-hooks-contrib) is
+            # currently broken and aborts the build; ffsubsync only uses
+            # webrtcvad for one optional VAD backend and works without it, so
+            # exclude it. If ffsubsync still can't be bundled we fall back below.
+            EXTRA=(--collect-all ffsubsync --collect-all srt --exclude-module webrtcvad)
           fi
-          pyinstaller --onefile --name subtitlegenie --clean --noconfirm $EXTRA run.py
+          if ! build "${EXTRA[@]}"; then
+            echo "::warning title=ffsubsync not bundled::Bundling ffsubsync failed; building without it. The binary still has the built-in ffmpeg auto-sync."
+            rm -rf build dist
+            build
+          fi
 
       - name: Stage and archive (Linux/macOS)
         if: runner.os != 'Windows'
