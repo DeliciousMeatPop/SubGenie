@@ -9,6 +9,10 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+_Nothing yet — new entries go here and are moved under a version heading automatically at release time._
+
+## [0.1.1] - 2026-08-18
+
 ### Fixed
 - **Embedding no longer fails with "the process cannot access the file".** On
   Windows a just-written large movie is briefly locked (antivirus/indexer), which
@@ -219,7 +223,8 @@ First public build. 🎉
 - Cross-platform drag-drop launchers for Windows, macOS, and Linux.
 - `setup`, `config`, and `languages` subcommands.
 
-[Unreleased]: https://github.com/DeliciousMeatPop/SubGenie/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/DeliciousMeatPop/SubGenie/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.1.1
 [0.1.0]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.1.0
 [0.0.9]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.0.9
 [0.0.7]: https://github.com/DeliciousMeatPop/SubGenie/releases/tag/v0.0.7
